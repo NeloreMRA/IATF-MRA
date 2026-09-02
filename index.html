@@ -70,17 +70,20 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .excel-actions{display:flex;justify-content:flex-end;gap:7px;border-top:1px solid #e8ece9;padding-top:9px}.excel-actions button{border:1px solid #d6ddd7;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}.excel-actions .excel-ok{border-color:#7d9a85;background:#f7faf8}.excel-actions .excel-clear{color:#b14d3d}
 .iatf-qty{width:48px!important;min-width:48px!important;max-width:48px;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{min-width:150px!important}.iatf-retorno{min-width:110px!important}
 /* Matrizes mais compactas, como um zoom menor, sem alterar o resto do sistema */
-.animals-page{font-size:12px}
-.animals-page .table-wrap{max-height:76vh}
-.animals-page table{font-size:11px}
-.animals-page th{padding:7px 7px;font-size:9.5px}
-.animals-page td{padding:4px 6px}
-.animals-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px}
-.animals-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
-.animals-page .toolbar{margin-bottom:7px}
+.animals-page,.iatf-page,.stock-page{font-size:12px}
+.animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{max-height:76vh}
+.animals-page table,.iatf-page table,.stock-page table{font-size:11px}
+.animals-page th,.iatf-page th,.stock-page th{padding:7px 7px;font-size:9.5px}
+.animals-page td,.iatf-page td,.stock-page td{padding:4px 6px}
+.animals-page .cell-input,.iatf-page .cell-input,.stock-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px}
+.animals-page .notice,.iatf-page .notice,.stock-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
+.animals-page .toolbar,.iatf-page .toolbar,.stock-page .toolbar{margin-bottom:7px}
 .animals-page .cell-input[style*="min-width:110px"]{min-width:92px!important}
-.animals-page .cell-input[style*="min-width:210px"]{min-width:175px!important}
+.animals-page .cell-input[style*="min-width:210px"],.stock-page .cell-input[style*="min-width:210px"]{min-width:175px!important}
 .animals-page select.cell-input{min-width:104px!important}
+.category-select.cat-vacas{background:#e7f0ff!important;color:#245a9c!important;font-weight:700}
+.category-select.cat-primi{background:#fff0da!important;color:#8a5919!important;font-weight:700}
+.category-select.cat-preco{background:#efe8ff!important;color:#6743a0!important;font-weight:700}
 
 @media(max-width:1050px){.cards{grid-template-columns:repeat(2,1fr)}.chart-grid,.settings-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app{grid-template-columns:72px 1fr}.sidebar{padding:18px 9px}.brand>div:not(.logo),.nav span,.sidebar-foot span:last-child{display:none}.brand{justify-content:center;padding:0 0 22px}.nav{justify-content:center;font-size:18px}main{padding:0 14px 30px}}
@@ -605,7 +608,7 @@ function renderAnimalTable(){
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
   <td><input class="cell-input" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
-  <td><select class="cell-input" style="min-width:120px" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td><select class="cell-input category-select ${catClass(a.category)}" style="min-width:120px" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
   <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
@@ -628,6 +631,7 @@ function editAnimalCell(id,key,val,el){
   }else if(key==='category'){
     a.category=val;
     db.iatf.forEach(r=>{if(r.rgd===a.rgd)r.category=val});
+    if(el){el.classList.remove('cat-vacas','cat-primi','cat-preco');el.classList.add(catClass(val));}
   }
   el.dataset.prev=val;
   // Não recria a tabela a cada edição: mantém foco e rolagem exatamente onde estão.
@@ -667,6 +671,7 @@ function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
+  <div class="iatf-page">
   <div class="toolbar"><div class="filters">
     <select id="iatfCatSel" onchange="iatfCategory=this.value;renderIatfRows()"><option value="">Todas as categorias</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select>
     <select id="cycleSel" onchange="iatfCycle=Number(this.value);renderIatfRows()">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select>
@@ -674,7 +679,8 @@ function iatfPage(){
     <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
   </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
   <div class="notice green"><strong>Lançamento rápido:</strong> Resultado aceita <strong>P</strong>, <strong>V</strong> ou <strong>PRT</strong>. Digite e pressione Enter para descer. Só a Vazia (V) entra automaticamente na próxima IATF — a PRT fica na lista do botão "PRTs" para você devolver manualmente.</div>
-  <div id="iatfTable"></div>`;renderIatfRows()
+  <div id="iatfTable"></div>
+  </div>`;renderIatfRows()
 }
 function animalDatalist(){return `<datalist id="animalsList">${db.animals.map(a=>`<option value="${esc(a.rgd)}">${esc(a.category)}</option>`).join('')}</datalist>`}
 function prtAnimals(){
@@ -815,14 +821,14 @@ function sortStock(k){if(stockSort.key===k)stockSort.dir*=-1;else stockSort={key
 function sf(k,v){stockFilters[k]=v;renderStock()} window.sf=sf;
 function stock(){
   title('Estoque','Cadastro de sêmen, entradas e saldo automático');setActions('');
-  $('#content').innerHTML=`<div class="toolbar">
+  $('#content').innerHTML=`<div class="stock-page"><div class="toolbar">
   <div class="quick-add">
   <button class="primary" onclick="addBlankStock()">+ Linha em branco</button>
   <button class="ghost" onclick="modalStock()">+ Entrada manual</button>
   <button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
   <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button></div>
   <div class="out-actions"><button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
-  <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div>`;renderStock()
+  <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div></div>`;renderStock()
 }
 function renderStock(){
   const root=$('#stockTable');if(!root)return;
