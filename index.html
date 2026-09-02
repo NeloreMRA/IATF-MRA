@@ -187,6 +187,7 @@ function migrate(x){
   x.meta=x.meta||{};x.meta.activeSeasonId=x.meta.activeSeasonId||x.seasons[0].id;
   x.cycleDates=x.cycleDates||{};
   x.iatfCycleCategories=x.iatfCycleCategories||{};
+  x.iatfMaxCycles=x.iatfMaxCycles||{};
   x.animals=x.animals||[];x.semen=x.semen||[];x.iatf=x.iatf||[];
   x.deletedAnimals=x.deletedAnimals||[];
   x.iatfExcluded=x.iatfExcluded||[];
@@ -532,9 +533,26 @@ function finalOutcomeCounts(){
   db.animals.forEach(a=>{const s=latestStatus(a.rgd);if(s)counts[s]++;else counts.none++});
   return counts
 }
+function maxIatfCycle(sid=db?.meta?.activeSeasonId){
+  const saved=Number((db.iatfMaxCycles||{})[sid]||12);
+  const used=Math.max(0,...(db.iatf||[]).filter(r=>r.seasonId===sid).map(r=>Number(r.cycle)||0));
+  const configured=Math.max(0,...Object.keys(((db.iatfCycleCategories||{})[sid])||{}).map(Number));
+  return Math.max(12,saved,used,configured);
+}
+function createNextIatf(){
+  const sid=db.meta.activeSeasonId;
+  db.iatfMaxCycles=db.iatfMaxCycles||{};
+  const next=maxIatfCycle(sid)+1;
+  db.iatfMaxCycles[sid]=next;
+  iatfCycle=next;
+  iatfCategory='';
+  save();
+  iatfPage();
+}
+window.createNextIatf=createNextIatf;
 function cycleStats(){
   const out=[];
-  for(let c=1;c<=12;c++){
+  for(let c=1;c<=maxIatfCycle();c++){
     const rr=seasonRows().filter(r=>Number(r.cycle)===c&&isDiagnosed(r.result));
     const p=rr.filter(r=>norm(r.result)==='P').length;
     if(rr.length)out.push({cycle:c,n:rr.length,p,rate:pct(p,rr.length)})
@@ -784,7 +802,7 @@ function iatfPage(){
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
   <div class="toolbar"><div class="filters">
-    <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select>
+    <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
     <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
     <div class="iatf-category-box"><span>Categorias:</span>
       <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
@@ -837,7 +855,6 @@ function updateIatfSire(el){
   }
 } window.updateIatfSire=updateIatfSire;
 function ensureNextIatf(r){
-  if(Number(r.cycle)>=12)return;
   const next=Number(r.cycle)+1;
   if(!seasonRows().some(x=>x.rgd===r.rgd&&Number(x.cycle)===next)){
     db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:r.category,cycle:next,rgd:r.rgd,firstSire:r.firstSire,secondSire:'',qty:0,result:'',return:''})
