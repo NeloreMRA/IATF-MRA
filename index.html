@@ -57,6 +57,7 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .out-actions{display:flex;gap:8px;align-items:center;margin-left:auto;padding-left:12px;border-left:1px solid #e1e6e2}
 @media(max-width:700px){.out-actions{margin-left:0;border-left:0;padding-left:0}}
 .date-box{display:flex;align-items:center;gap:7px;background:#edf6f0;border:1px solid #cfe3d5;border-radius:8px;padding:6px 9px}.date-box label{font-size:12px;font-weight:650}
+.iatf-category-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #d9dfda;border-radius:8px;padding:6px 9px}.iatf-category-box>span{font-size:11px;font-weight:700;color:#657169;margin-right:2px}.iatf-cat-check{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:7px;cursor:pointer;font-size:12px;user-select:none}.iatf-cat-check input{margin:0}.iatf-cat-check.vacas{background:#e7f0ff;color:#245a9c}.iatf-cat-check.primi{background:#fff0da;color:#8a5919}.iatf-cat-check.preco{background:#efe8ff;color:#6743a0}
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.clickable{cursor:pointer}
 .help{font-size:11px;color:#657169;margin-top:4px;line-height:1.4}.error-list{max-height:260px;overflow:auto;background:#fff8f6;border:1px solid #f1c9c1;padding:10px;border-radius:8px;font-size:12px}
 
@@ -128,6 +129,7 @@ body.authenticated #loginScreen{display:none}
   <nav>
     <button data-page="dashboard" class="nav active">▦ <span>Dashboard</span></button>
     <button data-page="animals" class="nav">◉ <span>Matrizes</span></button>
+    <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
     <button data-page="iatf" class="nav">✓ <span>IATF</span></button>
     <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
@@ -184,7 +186,10 @@ function migrate(x){
   x.settings={bullMinUses:5,bullPriorStrength:5,...(x.settings||{})};
   x.meta=x.meta||{};x.meta.activeSeasonId=x.meta.activeSeasonId||x.seasons[0].id;
   x.cycleDates=x.cycleDates||{};
+  x.iatfCycleCategories=x.iatfCycleCategories||{};
   x.animals=x.animals||[];x.semen=x.semen||[];x.iatf=x.iatf||[];
+  x.deletedAnimals=x.deletedAnimals||[];
+  x.iatfExcluded=x.iatfExcluded||[];
   x.animals.forEach(a=>{a.active=true});
 
   // --- MIGRAÇÃO v7: o "touro" passa a ser o antigo NOME DO BOTIJÃO ---
@@ -217,6 +222,18 @@ function migrate(x){
     x.meta.stockMigrated_v7=true;
   }
 
+  // --- MIGRAÇÃO v8: padroniza TUPA como TUPA MRA no estoque e nos vínculos ---
+  if(!x.meta.tupaMra_v8){
+    (x.semen||[]).forEach(s=>{if(norm(s.name)==='TUPA')s.name='TUPA MRA'});
+    (x.animals||[]).forEach(a=>{if(norm(a.firstSire)==='TUPA')a.firstSire='TUPA MRA'});
+    (x.iatf||[]).forEach(r=>{if(norm(r.firstSire)==='TUPA')r.firstSire='TUPA MRA';if(norm(r.secondSire)==='TUPA')r.secondSire='TUPA MRA'});
+    (x.deletedAnimals||[]).forEach(d=>{
+      if(d.animal&&norm(d.animal.firstSire)==='TUPA')d.animal.firstSire='TUPA MRA';
+      (d.iatf||[]).forEach(r=>{if(norm(r.firstSire)==='TUPA')r.firstSire='TUPA MRA';if(norm(r.secondSire)==='TUPA')r.secondSire='TUPA MRA'});
+    });
+    x.meta.tupaMra_v8=true;
+  }
+
   x.semen.forEach(s=>{
     s.active=true;
     s.rgdTouro=s.rgdTouro||'';
@@ -236,6 +253,16 @@ function migrate(x){
     r.return=r.return||'';
     r.qty=Number(r.qty||0); r.result=normResult(r.result);
   });
+  // Categorias vinculadas a cada IATF. Na primeira migração, infere das linhas já existentes.
+  if(!x.meta.iatfCycleCategories_v9){
+    (x.iatf||[]).forEach(r=>{
+      const sid=r.seasonId||x.meta.activeSeasonId, cy=String(Number(r.cycle)||1);
+      x.iatfCycleCategories[sid]=x.iatfCycleCategories[sid]||{};
+      x.iatfCycleCategories[sid][cy]=x.iatfCycleCategories[sid][cy]||[];
+      if(r.category&&!x.iatfCycleCategories[sid][cy].includes(r.category))x.iatfCycleCategories[sid][cy].push(r.category);
+    });
+    x.meta.iatfCycleCategories_v9=true;
+  }
   return x
 }
 // PRT substitui o antigo "M" (matar). PRT conta como não-prenha nos cálculos.
@@ -449,6 +476,7 @@ function render(){
   renderSeasonSelector();
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
+  else if(page==='deleted')deletedAnimalsPage();
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
   else settings();
@@ -460,7 +488,7 @@ function setActions(h){$('#pageActions').innerHTML=h||''}
 /* FILTRO ESTILO EXCEL */
 function rawRowsForExcel(kind){
   if(kind==='animals')return db.animals.map(a=>({...a,status:latestStatus(a.rgd)}));
-  if(kind==='iatf')return seasonRows().filter(r=>(!iatfCategory||r.category===iatfCategory)&&Number(r.cycle)===Number(iatfCycle));
+  if(kind==='iatf'){const cats=getIatfCycleCategories(iatfCycle);return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)&&(!cats.length||cats.includes(r.category)));}
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   return []
 }
@@ -639,7 +667,15 @@ function editAnimalCell(id,key,val,el){
 } window.editAnimalCell=editAnimalCell;
 function toggleAnimalSelection(){animalSelecting=!animalSelecting;if(!animalSelecting)animalSelected.clear();animals()} window.toggleAnimalSelection=toggleAnimalSelection;
 function selectAnimal(id,on){on?animalSelected.add(id):animalSelected.delete(id);const b=$('.danger-btn');if(b)b.textContent=`Excluir selecionadas (${animalSelected.size})`} window.selectAnimal=selectAnimal;
-function deleteSelectedAnimals(){if(!animalSelected.size)return alert('Selecione pelo menos uma matriz.');if(!confirm(`Excluir ${animalSelected.size} matrizes e seus lançamentos de IATF?`))return;const rgds=new Set(db.animals.filter(a=>animalSelected.has(a.id)).map(a=>a.rgd));db.animals=db.animals.filter(a=>!animalSelected.has(a.id));db.iatf=db.iatf.filter(r=>!rgds.has(r.rgd));animalSelected.clear();animalSelecting=false;save();animals()} window.deleteSelectedAnimals=deleteSelectedAnimals;
+function archiveAnimal(a){
+  if(!a)return;
+  const launches=db.iatf.filter(r=>r.rgd===a.rgd).map(deepClone);
+  db.deletedAnimals=db.deletedAnimals||[];
+  db.deletedAnimals.unshift({id:uid('del'),deletedAt:new Date().toISOString(),animal:deepClone(a),iatf:launches});
+  db.animals=db.animals.filter(x=>x.id!==a.id);
+  db.iatf=db.iatf.filter(r=>r.rgd!==a.rgd);
+}
+function deleteSelectedAnimals(){if(!animalSelected.size)return alert('Selecione pelo menos uma matriz.');if(!confirm(`Excluir ${animalSelected.size} matrizes e mover para Exclusões? Você poderá recuperá-las depois.`))return;const list=db.animals.filter(a=>animalSelected.has(a.id));list.forEach(archiveAnimal);animalSelected.clear();animalSelecting=false;save();animals()} window.deleteSelectedAnimals=deleteSelectedAnimals;
 function modalAnimal(id=''){
   const a=id?db.animals.find(x=>x.id===id):null;
   openModal(`<h2>${a?'Editar matriz':'Cadastrar matriz'}</h2>${bullDatalist()}<div class="form-grid">
@@ -658,29 +694,109 @@ function saveAnimal(id){
   else db.animals.push({id:uid('a'),rgd,firstSire:sire,category:cat,active:true});
   save();closeModal();page==='animals'?animals():render()
 } window.saveAnimal=saveAnimal;
-function deleteAnimal(id){const a=db.animals.find(x=>x.id===id);if(!a)return;if(!confirm(`Excluir ${a.rgd} e todos os lançamentos dela?`))return;db.animals=db.animals.filter(x=>x.id!==id);db.iatf=db.iatf.filter(r=>r.rgd!==a.rgd);save();closeModal();animals()} window.deleteAnimal=deleteAnimal;
+function deleteAnimal(id){const a=db.animals.find(x=>x.id===id);if(!a)return;if(!confirm(`Excluir ${a.rgd} e mover para Exclusões? Os lançamentos de IATF também serão guardados para recuperação.`))return;archiveAnimal(a);save();closeModal();animals()} window.deleteAnimal=deleteAnimal;
+
+/* MATRIZES EXCLUÍDAS / RECUPERAÇÃO */
+function deletedAnimalsPage(){
+  title('Exclusões','Matrizes excluídas — recupere em caso de exclusão por engano');setActions('');
+  const rows=(db.deletedAnimals||[]).slice().sort((a,b)=>String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
+  $('#content').innerHTML=`<div class="animals-page">
+    <div class="notice green">Ao excluir uma matriz, o cadastro e os lançamentos de IATF dela ficam guardados aqui. <strong>Recuperar</strong> devolve tudo para o sistema.</div>
+    <div style="display:flex;justify-content:flex-end;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> exclusão(ões) armazenada(s)</div>
+    ${rows.length?`<div class="table-wrap"><table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>Categoria</th><th>Excluída em</th><th>IATFs guardadas</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td><strong>${esc(d.animal?.rgd||'')}</strong></td><td>${esc(d.animal?.firstSire||'')}</td><td><span class="badge ${catClass(d.animal?.category)}">${esc(d.animal?.category||'')}</span></td><td>${d.deletedAt?new Date(d.deletedAt).toLocaleString('pt-BR'):''}</td><td>${(d.iatf||[]).length}</td><td><button class="primary" style="padding:5px 8px" onclick="restoreDeletedAnimal('${d.id}')">Recuperar</button> <button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="purgeDeletedAnimal('${d.id}')">Excluir definitivo</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Nenhuma matriz excluída.</div>`}
+  </div>`;
+}
+function restoreDeletedAnimal(id){
+  const d=(db.deletedAnimals||[]).find(x=>x.id===id);if(!d||!d.animal)return;
+  if(db.animals.some(a=>norm(a.rgd)===norm(d.animal.rgd)))return alert('Já existe uma matriz ativa com esse RGD.');
+  db.animals.push(deepClone(d.animal));
+  const existing=new Set(db.iatf.map(r=>r.id));
+  (d.iatf||[]).forEach(r=>{const copy=deepClone(r);if(existing.has(copy.id))copy.id=uid('i');db.iatf.push(copy)});
+  db.deletedAnimals=db.deletedAnimals.filter(x=>x.id!==id);save();deletedAnimalsPage();
+}
+function purgeDeletedAnimal(id){if(!confirm('Excluir definitivamente este backup? Depois disso não será possível recuperar.'))return;db.deletedAnimals=(db.deletedAnimals||[]).filter(x=>x.id!==id);save();deletedAnimalsPage()}
+window.restoreDeletedAnimal=restoreDeletedAnimal;window.purgeDeletedAnimal=purgeDeletedAnimal;
 
 /* IATF */
+function getIatfCycleCategories(cycle=iatfCycle){
+  const sid=db?.meta?.activeSeasonId;if(!sid)return [];
+  db.iatfCycleCategories=db.iatfCycleCategories||{};
+  db.iatfCycleCategories[sid]=db.iatfCycleCategories[sid]||{};
+  return db.iatfCycleCategories[sid][String(Number(cycle))]||[];
+}
+function setIatfCycleCategories(cycle,cats){
+  const sid=db.meta.activeSeasonId;
+  db.iatfCycleCategories=db.iatfCycleCategories||{};
+  db.iatfCycleCategories[sid]=db.iatfCycleCategories[sid]||{};
+  db.iatfCycleCategories[sid][String(Number(cycle))]=[...new Set(cats)];
+}
 function iatfRowsFiltered(){
-  let rows=seasonRows().filter(r=>(!iatfCategory||r.category===iatfCategory)&&Number(r.cycle)===Number(iatfCycle)).filter(r=>excelPass('iatf',r));
+  const cats=getIatfCycleCategories(iatfCycle);
+  let rows=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)&&(!cats.length||cats.includes(r.category))).filter(r=>excelPass('iatf',r));
   const k=iatfSort.key,d=iatfSort.dir;rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
 function sortIatf(k){if(iatfSort.key===k)iatfSort.dir*=-1;else iatfSort={key:k,dir:1};renderIatfRows()} window.sortIatf=sortIatf;
 function iff(k,v){iatfFilters[k]=v;renderIatfRows()} window.iff=iff;
+function eligibleForIatf(a,cycle){
+  if(!a||!a.rgd)return false;
+  // Para a categoria escolhida: quem nunca entrou antes aparece; quem já entrou volta se
+  // o último diagnóstico anterior for V ou se ainda estiver sem resultado.
+  const previous=seasonRows().filter(r=>r.rgd===a.rgd&&Number(r.cycle)<Number(cycle)).sort((x,y)=>Number(y.cycle)-Number(x.cycle));
+  if(!previous.length)return true;
+  const latest=previous[0];
+  const res=normResult(latest.result);
+  return !res || res==='V';
+}
+function isIatfExcluded(rgd,cycle=iatfCycle){
+  const sid=db?.meta?.activeSeasonId;
+  return (db.iatfExcluded||[]).some(x=>x.seasonId===sid&&Number(x.cycle)===Number(cycle)&&x.rgd===rgd);
+}
+function prepareIatfCategories(){
+  const cats=getIatfCycleCategories(iatfCycle);if(!cats.length)return;
+  const existing=new Set(seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).map(r=>r.rgd));
+  let changed=false;
+  cats.forEach(cat=>{
+    db.animals.filter(a=>a.category===cat&&eligibleForIatf(a,iatfCycle)).forEach(a=>{
+      if(existing.has(a.rgd)||isIatfExcluded(a.rgd,iatfCycle))return;
+      db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+      existing.add(a.rgd);changed=true;
+    });
+  });
+  if(changed)save();
+}
+function toggleIatfCategory(cat,checked){
+  let cats=getIatfCycleCategories(iatfCycle).slice();
+  if(checked){if(!cats.includes(cat))cats.push(cat)}
+  else{
+    cats=cats.filter(c=>c!==cat);
+    // Ao desmarcar, apaga somente linhas automáticas ainda totalmente vazias.
+    db.iatf=db.iatf.filter(r=>!(r.seasonId===db.meta.activeSeasonId&&Number(r.cycle)===Number(iatfCycle)&&r.category===cat&&!Number(r.qty)&&!normResult(r.result)&&!String(r.return||'').trim()&&!String(r.secondSire||'').trim()));
+  }
+  setIatfCycleCategories(iatfCycle,cats);
+  if(checked)prepareIatfCategories();else save();
+  renderIatfRows();
+} window.toggleIatfCategory=toggleIatfCategory;
+function selectIatfCycle(v){iatfCycle=Number(v);iatfCategory='';iatfPage()} window.selectIatfCycle=selectIatfCycle;
 function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
+  const cats=getIatfCycleCategories(iatfCycle);
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
   <div class="toolbar"><div class="filters">
-    <select id="iatfCatSel" onchange="iatfCategory=this.value;renderIatfRows()"><option value="">Todas as categorias</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select>
-    <select id="cycleSel" onchange="iatfCycle=Number(this.value);renderIatfRows()">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select>
+    <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select>
     <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
-    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+    <div class="iatf-category-box"><span>Categorias:</span>
+      <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
+      <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
+      <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
+    </div>
+    ${cats.length?`<button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button>`:''}<button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
   </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green"><strong>Lançamento rápido:</strong> Resultado aceita <strong>P</strong>, <strong>V</strong> ou <strong>PRT</strong>. Digite e pressione Enter para descer. Só a Vazia (V) entra automaticamente na próxima IATF — a PRT fica na lista do botão "PRTs" para você devolver manualmente.</div>
+  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marque uma ou mais categorias. Ex.: 1ª IATF = Vacas + Primíparas; 2ª IATF = Vacas + Precocinhas. Para categorias já trabalhadas, entram as matrizes <strong>Vazias ou ainda Sem resultado</strong>. Se a categoria nunca participou de IATF anterior, entram <strong>todas as matrizes</strong> dela. Prenhas e PRT ficam de fora.</div>
   <div id="iatfTable"></div>
-  </div>`;renderIatfRows()
+  </div>`;
+  if(cats.length)prepareIatfCategories();renderIatfRows()
 }
 function animalDatalist(){return `<datalist id="animalsList">${db.animals.map(a=>`<option value="${esc(a.rgd)}">${esc(a.category)}</option>`).join('')}</datalist>`}
 function prtAnimals(){
@@ -736,9 +852,9 @@ function updateIatfResult(id,val,el){
   if(el.value.trim() && !val){alert('Resultado deve ser P, V ou PRT.');el.value='';}
   const r=db.iatf.find(x=>x.id===id);if(!r)return;
   r.result=val; el.value=val;
-  // Só V avança para a próxima IATF. P e PRT não avançam.
-  // Apagar o resultado (ou trocar por P/PRT) remove os ciclos seguintes que estavam vazios.
-  if(val==='V')ensureNextIatf(r); else removeEmptyFollowUps(r);
+  // Na nova lógica, nenhuma matriz é lançada automaticamente na próxima IATF.
+  // A próxima IATF é montada quando você escolhe IATF + data + categoria.
+  if(val!=='V')removeEmptyFollowUps(r);
   save();renderIatfRows()
 } window.updateIatfResult=updateIatfResult;
 
@@ -793,12 +909,40 @@ function saveQuickAnimal(){
   if(!a)return alert(`A matriz "${rgd}" não está cadastrada. Cadastre primeiro na aba Matrizes.`);
   if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle))return alert('Essa matriz já está nesta IATF.');
   db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
-  save();closeModal();iatfCategory=a.category;iatfPage()
+  save();closeModal();iatfPage()
 } window.saveQuickAnimal=saveQuickAnimal;
-function deleteIatf(id){if(!confirm('Excluir este lançamento?'))return;db.iatf=db.iatf.filter(x=>x.id!==id);save();renderIatfRows()} window.deleteIatf=deleteIatf;
+function iatfExcludedCurrent(){
+  const sid=db.meta.activeSeasonId;
+  return (db.iatfExcluded||[]).filter(x=>x.seasonId===sid&&Number(x.cycle)===Number(iatfCycle));
+}
+function openIatfExcluded(){
+  const rows=iatfExcludedCurrent();
+  openModal(`<h2>Excluídas da ${iatfCycle}ª IATF</h2>
+  <div class="notice green">Estas matrizes foram removidas manualmente somente desta IATF. Restaurar devolve a matriz para a tabela desta mesma IATF.</div>
+  ${rows.length?`<div class="table-wrap"><table><thead><tr><th>RGD</th><th>Categoria</th><th>Excluída em</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.rgd)}</strong></td><td><span class="badge ${catClass(x.category)}">${esc(x.category||'')}</span></td><td>${x.excludedAt?new Date(x.excludedAt).toLocaleString('pt-BR'):''}</td><td><button class="primary" style="padding:5px 8px" onclick="restoreIatfExcluded('${x.id}')">Restaurar</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Nenhuma matriz excluída desta IATF.</div>`}
+  <div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
+} window.openIatfExcluded=openIatfExcluded;
+function restoreIatfExcluded(id){
+  const x=(db.iatfExcluded||[]).find(e=>e.id===id);if(!x)return;
+  const a=db.animals.find(a=>a.rgd===x.rgd);if(!a)return alert('Essa matriz não está mais cadastrada em Matrizes.');
+  if(!seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===Number(x.cycle))){
+    db.iatf.push({id:uid('i'),seasonId:x.seasonId,category:a.category,cycle:Number(x.cycle),rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+  }
+  db.iatfExcluded=db.iatfExcluded.filter(e=>e.id!==id);
+  save();closeModal();renderIatfRows();
+} window.restoreIatfExcluded=restoreIatfExcluded;
+function deleteIatf(id){
+  const r=db.iatf.find(x=>x.id===id);if(!r)return;
+  if(!confirm('Excluir esta matriz somente desta IATF? Ela ficará em “Excluídas desta IATF” e poderá ser restaurada depois.'))return;
+  db.iatfExcluded=db.iatfExcluded||[];
+  if(!db.iatfExcluded.some(x=>x.seasonId===r.seasonId&&Number(x.cycle)===Number(r.cycle)&&x.rgd===r.rgd)){
+    db.iatfExcluded.unshift({id:uid('ix'),seasonId:r.seasonId,cycle:Number(r.cycle),rgd:r.rgd,category:r.category,excludedAt:new Date().toISOString()});
+  }
+  db.iatf=db.iatf.filter(x=>x.id!==id);save();iatfPage();
+} window.deleteIatf=deleteIatf;
 function openIatfOutput(mode){
   openModal(`<h2>${mode==='print'?'Imprimir':'Exportar'} IATF</h2><div class="form-grid">
-  <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select></div>
+  <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option>${c}</option>`).join('')}</select></div>
   <div class="field"><label>Número da IATF</label><select id="outCycle"><option value="">Todas</option>${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
   <div class="field"><label>Resultado</label><select id="outResult"><option value="">Todos</option><option>P</option><option>V</option><option>PRT</option></select></div>
   <div class="field"><label>Filtros da tela</label><select id="outCurrent"><option value="yes">Respeitar filtros atuais</option><option value="no">Ignorar filtros da tabela</option></select></div></div>
