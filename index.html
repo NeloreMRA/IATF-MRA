@@ -23,7 +23,7 @@
 header{min-height:96px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e1e6e2;margin-bottom:24px;gap:14px}
 h1{font-size:24px;margin:0 0 5px}header p{margin:0;color:#768078;font-size:13px}.header-actions,.filters,.quick-add,.actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 button{font:inherit}.primary,.ghost,.danger-btn{padding:9px 13px;border-radius:8px;cursor:pointer}.primary{border:0;background:#1f6a49;color:white}.primary:hover{background:#185b3e}
-.ghost{background:white;border:1px solid #d9dfda;color:#334139}.danger-btn{background:#fff;border:1px solid #e7bbb5;color:#a33627}
+.ghost{background:white;border:1px solid #d9dfda;color:#334139}.ghost:disabled{opacity:.45;cursor:not-allowed}.danger-btn{background:#fff;border:1px solid #e7bbb5;color:#a33627}
 .input,select{border:1px solid #d7ded9;background:#fff;border-radius:8px;padding:8px 9px;color:#233129;min-height:36px}.input{min-width:180px}
 .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card,.chart{background:white;border:1px solid #e3e8e4;border-radius:12px;padding:17px;box-shadow:0 1px 2px #00000008}
 .kpi .label{color:#7d867f;font-size:12px}.kpi .value{font-size:27px;font-weight:760;margin-top:7px}.kpi .hint{font-size:11px;color:#829087;margin-top:4px}
@@ -69,6 +69,18 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .excel-check-all{display:flex;gap:8px;align-items:center;padding:6px 2px;border-bottom:1px solid #e8ece9}.excel-values{max-height:190px;overflow:auto;margin:5px 0}.excel-value{display:flex;gap:8px;align-items:center;padding:5px 2px}.excel-value.hidden{display:none}.excel-value span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .excel-actions{display:flex;justify-content:flex-end;gap:7px;border-top:1px solid #e8ece9;padding-top:9px}.excel-actions button{border:1px solid #d6ddd7;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}.excel-actions .excel-ok{border-color:#7d9a85;background:#f7faf8}.excel-actions .excel-clear{color:#b14d3d}
 .iatf-qty{width:48px!important;min-width:48px!important;max-width:48px;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{min-width:150px!important}.iatf-retorno{min-width:110px!important}
+/* Matrizes mais compactas, como um zoom menor, sem alterar o resto do sistema */
+.animals-page{font-size:12px}
+.animals-page .table-wrap{max-height:76vh}
+.animals-page table{font-size:11px}
+.animals-page th{padding:7px 7px;font-size:9.5px}
+.animals-page td{padding:4px 6px}
+.animals-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px}
+.animals-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
+.animals-page .toolbar{margin-bottom:7px}
+.animals-page .cell-input[style*="min-width:110px"]{min-width:92px!important}
+.animals-page .cell-input[style*="min-width:210px"]{min-width:175px!important}
+.animals-page select.cell-input{min-width:104px!important}
 
 @media(max-width:1050px){.cards{grid-template-columns:repeat(2,1fr)}.chart-grid,.settings-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app{grid-template-columns:72px 1fr}.sidebar{padding:18px 9px}.brand>div:not(.logo),.nav span,.sidebar-foot span:last-child{display:none}.brand{justify-content:center;padding:0 0 22px}.nav{justify-content:center;font-size:18px}main{padding:0 14px 30px}}
@@ -124,7 +136,7 @@ body.authenticated #loginScreen{display:none}
 <main>
 <header>
   <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub"></p></div>
-  <div class="header-actions"><div id="pageActions"></div></div>
+  <div class="header-actions"><button id="undoBtn" class="ghost" type="button" onclick="undoLastChange()" title="Desfazer última alteração (Ctrl+Z)" disabled>↶ Desfazer</button><div id="pageActions"></div></div>
 </header>
 <section id="content"></section>
 </main></div>
@@ -145,6 +157,8 @@ const FIREBASE_CONFIG={
 let firestore=null, stateRef=null, syncTimer=null, unsubscribeFirestore=null, applyingRemote=false, lastRemoteJSON='';
 
 let db=null,page='dashboard',iatfCategory='',iatfCycle=1,animalSelecting=false,animalSelected=new Set();
+let undoStack=[],undoBaselineJSON='',suppressUndoHistory=false,localWritePending=false;
+const UNDO_LIMIT=50;
 let animalSort={key:'rgd',dir:1},iatfSort={key:'rgd',dir:1},stockSort={key:'saldo',dir:-1};
 let animalFilters={rgd:'',firstSire:'',category:'',status:''};
 let iatfFilters={rgd:'',firstSire:'',qty:'',result:'',category:'',cycle:1};
@@ -229,10 +243,49 @@ function setSyncStatus(kind,text){
   if(dot)dot.style.background=colors[kind]||colors.saving;
   if(s)s.textContent=text||({ok:'Sincronizado',saving:'Salvando...',error:'Problema de conexão',offline:'Problema de conexão'}[kind]||'Conectando...');
 }
+function updateUndoButton(){
+  const b=$('#undoBtn');if(b)b.disabled=!undoStack.length;
+}
+function resetUndoBaseline(clearHistory=false){
+  undoBaselineJSON=JSON.stringify(deepClone(db));
+  if(clearHistory)undoStack=[];
+  updateUndoButton();
+}
+function registerUndoSnapshot(){
+  const current=JSON.stringify(deepClone(db));
+  if(!undoBaselineJSON){undoBaselineJSON=current;return}
+  if(current===undoBaselineJSON)return;
+  if(!suppressUndoHistory){
+    undoStack.push(undoBaselineJSON);
+    if(undoStack.length>UNDO_LIMIT)undoStack.shift();
+  }
+  undoBaselineJSON=current;
+  updateUndoButton();
+}
+function undoLastChange(){
+  if(!undoStack.length)return;
+  closeExcelFilter();
+  clearTimeout(syncTimer);
+  const previous=undoStack.pop();
+  suppressUndoHistory=true;
+  try{
+    db=migrate(JSON.parse(previous));
+    undoBaselineJSON=JSON.stringify(deepClone(db));
+    try{localStorage.setItem(STORE,undoBaselineJSON)}catch(e){console.warn('Cache local:',e)}
+    render();
+    // Desfazer é uma nova alteração local: volta o estado e grava a reversão no Firebase.
+    localWritePending=true;
+    setSyncStatus('saving','Salvando desfazer...');
+    syncTimer=setTimeout(syncToFirestore,0);
+  }finally{suppressUndoHistory=false;updateUndoButton()}
+}
+window.undoLastChange=undoLastChange;
 function save(renderToo=false){
+  registerUndoSnapshot();
   try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){console.warn('Cache local:',e)}
   if(renderToo)render();
   if(applyingRemote)return;
+  localWritePending=true;
   setSyncStatus('saving','Salvando...');
   clearTimeout(syncTimer);
   syncTimer=setTimeout(syncToFirestore,250);
@@ -243,9 +296,11 @@ async function syncToFirestore(){
     const clean=deepClone(db);
     await stateRef.set({db:clean,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     lastRemoteJSON=JSON.stringify(clean);
+    localWritePending=false;
     setSyncStatus('ok','Sincronizado');
   }catch(e){
     console.error('Erro ao sincronizar com Firestore:',e);
+    localWritePending=false;
     setSyncStatus('error','Problema de conexão');
   }
 }
@@ -285,6 +340,7 @@ async function init(){
     localDb=migrate(deepClone(DEFAULT_DB));
   }
   db=localDb;
+  resetUndoBaseline(true);
   bind();
   render();
   setSyncStatus('saving','Conectando...');
@@ -299,6 +355,7 @@ async function init(){
       db=migrate(snap.data().db);
       localStorage.setItem(STORE,JSON.stringify(db));
       lastRemoteJSON=JSON.stringify(deepClone(db));
+      resetUndoBaseline(true);
       applyingRemote=false;
       render();
       setSyncStatus('ok','Sincronizado');
@@ -313,10 +370,19 @@ async function init(){
       const incoming=migrate(s.data().db);
       const incomingJSON=JSON.stringify(deepClone(incoming));
       if(incomingJSON===lastRemoteJSON)return;
+      // Se o Firestore devolveu exatamente o estado que já está na tela, é o nosso próprio salvamento.
+      // Atualiza só o status e NÃO renderiza a página inteira (evita pulo de rolagem/foco).
+      const currentJSON=JSON.stringify(deepClone(db));
+      if(incomingJSON===currentJSON){lastRemoteJSON=incomingJSON;setSyncStatus('ok','Sincronizado');return}
+      // Enquanto há uma gravação local (inclusive Desfazer), ignora um snapshot remoto antigo
+      // para ele não apagar a alteração nem limpar o histórico.
+      if(localWritePending)return;
       applyingRemote=true;
       db=incoming;
       lastRemoteJSON=incomingJSON;
       try{localStorage.setItem(STORE,incomingJSON)}catch(e){}
+      // Mudança realmente vinda de outro dispositivo: atualiza a base, mas NÃO apaga o histórico local.
+      resetUndoBaseline(false);
       applyingRemote=false;
       render();
       setSyncStatus('ok','Sincronizado');
@@ -339,19 +405,51 @@ function bind(){
   $('#seasonHeader').onchange=e=>{db.meta.activeSeasonId=e.target.value;save();render()};
   $('#animalImportFile').onchange=e=>{importAnimalsExcel(e.target.files[0]);e.target.value=''};
   $('#stockImportFile').onchange=e=>{importStockExcel(e.target.files[0]);e.target.value=''};
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&String(e.key).toLowerCase()==='z'){
+      e.preventDefault();
+      const active=document.activeElement;
+      if(active&&typeof active.blur==='function')active.blur();
+      setTimeout(undoLastChange,0);
+    }
+  });
 }
 function go(p){page=p;$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===p));render()}
 window.go=go;
 function renderSeasonSelector(){
   $('#seasonHeader').innerHTML=db.seasons.map(s=>`<option value="${esc(s.id)}" ${s.id===db.meta.activeSeasonId?'selected':''}>${esc(s.name)}</option>`).join('')
 }
+function captureViewPosition(){
+  const wraps={};
+  document.querySelectorAll('.table-wrap').forEach((el,i)=>{
+    const host=el.closest('[id]');
+    const key=(host?host.id:'wrap')+':'+i;
+    wraps[key]={top:el.scrollTop,left:el.scrollLeft};
+  });
+  return {x:window.scrollX,y:window.scrollY,wraps};
+}
+function restoreViewPosition(pos){
+  if(!pos)return;
+  const apply=()=>{
+    window.scrollTo(pos.x,pos.y);
+    document.querySelectorAll('.table-wrap').forEach((el,i)=>{
+      const host=el.closest('[id]');
+      const key=(host?host.id:'wrap')+':'+i;
+      const st=pos.wraps[key];
+      if(st){el.scrollTop=st.top;el.scrollLeft=st.left}
+    });
+  };
+  apply();requestAnimationFrame(()=>{apply();requestAnimationFrame(apply)});
+}
 function render(){
+  const __view=captureViewPosition();
   renderSeasonSelector();
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
   else settings();
+  restoreViewPosition(__view);
 }
 function setActions(h){$('#pageActions').innerHTML=h||''}
 
@@ -475,9 +573,11 @@ function animals(){
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}
+  <div class="animals-page">
   <div class="toolbar">
     <div class="quick-add">
       <button class="primary" onclick="addBlankAnimal()">+ Linha em branco</button>
+      <button class="ghost" onclick="modalAnimal()">+ Entrada manual</button>
       <button class="ghost" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button>
       <button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo Excel</button>
       <button class="ghost" onclick="toggleAnimalSelection()">${animalSelecting?'Cancelar seleção':'☑ Selecionar'}</button>
@@ -486,7 +586,8 @@ function animals(){
     <div class="out-actions"><button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
   </div>
   <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente.</div>
-  <div id="animalTable"></div>`;
+  <div id="animalTable"></div>
+  </div>`;
   renderAnimalTable()
 }
 function addBlankAnimal(){
@@ -494,7 +595,9 @@ function addBlankAnimal(){
   save();animals()
 } window.addBlankAnimal=addBlankAnimal;
 function renderAnimalTable(){
-  const root=$('#animalTable');if(!root)return;const rows=animalRowsFiltered();
+  const root=$('#animalTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=animalRowsFiltered();
   const total=db.animals.length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matrizes exibidas de <strong style="color:#233129;margin:0 4px">${total}</strong> cadastradas</div><div class="table-wrap"><table><thead>
   <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th></th></tr>
@@ -505,6 +608,7 @@ function renderAnimalTable(){
   <td><select class="cell-input" style="min-width:120px" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
   <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  restoreViewPosition(__view);
 }
 // Edição direta na tabela de matrizes, espelhando no IATF
 function editAnimalCell(id,key,val,el){
@@ -526,7 +630,8 @@ function editAnimalCell(id,key,val,el){
     db.iatf.forEach(r=>{if(r.rgd===a.rgd)r.category=val});
   }
   el.dataset.prev=val;
-  save();renderAnimalTable()
+  // Não recria a tabela a cada edição: mantém foco e rolagem exatamente onde estão.
+  save();
 } window.editAnimalCell=editAnimalCell;
 function toggleAnimalSelection(){animalSelecting=!animalSelecting;if(!animalSelecting)animalSelected.clear();animals()} window.toggleAnimalSelection=toggleAnimalSelection;
 function selectAnimal(id,on){on?animalSelected.add(id):animalSelected.delete(id);const b=$('.danger-btn');if(b)b.textContent=`Excluir selecionadas (${animalSelected.size})`} window.selectAnimal=selectAnimal;
@@ -579,7 +684,9 @@ function prtAnimals(){
   })
 }
 function renderIatfRows(){
-  const root=$('#iatfTable');if(!root)return;const rows=iatfRowsFiltered();
+  const root=$('#iatfTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=iatfRowsFiltered();
   root.innerHTML=`<div class="table-wrap"><table><thead>
   <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
@@ -591,6 +698,7 @@ function renderIatfRows(){
   <td><input class="cell-input iatf-retorno" type="text" value="${esc(r.return||'')}" placeholder="—" onchange="updateIatfCell('${r.id}','return',this.value)"></td>
   <td><span class="badge ${catClass(r.category)}">${esc(r.category)}</span></td>
   <td><button class="mini" onclick="deleteIatf('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  restoreViewPosition(__view);
 }
 function iatfEnter(e,cls){if(e.key!=='Enter')return;e.preventDefault();e.target.blur();const els=$$('.'+cls);const i=els.indexOf(e.target);if(els[i+1]){els[i+1].focus();els[i+1].select()}} window.iatfEnter=iatfEnter;
 function updateIatfCell(id,key,val){const r=db.iatf.find(x=>x.id===id);if(!r)return;r[key]=key==='qty'?Number(String(val).replace(',','.'))||0:val;save()} window.updateIatfCell=updateIatfCell;
@@ -603,7 +711,7 @@ function updateIatfSire(el){
     // espelha na aba Matrizes e nas demais IATFs da mesma matriz
     const a=db.animals.find(x=>x.rgd===r.rgd); if(a)a.firstSire=val;
     db.iatf.forEach(x=>{if(x.rgd===r.rgd)x.firstSire=val});
-    save();el.dataset.prev=val;renderIatfRows()
+    save();el.dataset.prev=val
   }
 } window.updateIatfSire=updateIatfSire;
 function ensureNextIatf(r){
@@ -717,7 +825,9 @@ function stock(){
   <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div>`;renderStock()
 }
 function renderStock(){
-  const root=$('#stockTable');if(!root)return;const rows=stockRowsFiltered();
+  const root=$('#stockTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=stockRowsFiltered();
   const totalDoses=rows.reduce((a,s)=>a+Number(s.initial||0),0),totalUsado=rows.reduce((a,s)=>a+Number(s.used||0),0),totalSaldo=rows.reduce((a,s)=>a+Number(s.saldo||0),0);
   const fmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> registros no filtro</div><div class="table-wrap"><table><thead>
@@ -734,6 +844,7 @@ function renderStock(){
   <td class="${s.saldo<=0?'stock-low':'stock-ok'}"><strong>${s.saldo}</strong></td>
   <td><input class="cell-input" type="date" value="${esc(s.addedDate||'')}" onchange="editStockCell('${s.id}','addedDate',this.value,this)"></td>
   <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`}).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="4" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
+  restoreViewPosition(__view);
 }
 function addBlankStock(){
   db.semen.unshift({id:uid('s'),name:'',rgdTouro:'',tank:'',caneca:'',initial:0,addedDate:'',usedOverride:null,active:true});
