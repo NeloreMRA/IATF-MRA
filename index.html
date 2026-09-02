@@ -45,9 +45,16 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .modal{position:fixed;inset:0;background:#0007;display:grid;place-items:center;padding:20px;z-index:30}.modal.hidden{display:none}.modal-card{width:min(720px,100%);max-height:92vh;overflow:auto;background:white;border-radius:14px;padding:24px;position:relative}.x{position:absolute;right:15px;top:10px;border:0;background:none;font-size:25px;cursor:pointer}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;color:#69746c}.actions{justify-content:flex-end;margin-top:18px}
 .mini-actions{display:flex;gap:6px}.mini{border:1px solid #d9dfda;background:#fff;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px}
+.side-season{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
+.side-season label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#cdd8c4;margin-bottom:5px}
+.side-season select{width:100%;background:#24583f;color:#fff;border:1px solid #3d7355;border-radius:7px;padding:7px;font-size:12.5px;min-height:auto}
+@media(max-width:900px){.side-season label{display:none}}
+@media(max-width:600px){.side-season{display:none}}
 .season-pill{display:flex;align-items:center;gap:7px;background:white;border:1px solid #d9dfda;border-radius:8px;padding:5px 8px}.season-pill select{border:0;padding:2px;min-height:auto}
 .checkbox{width:17px;height:17px}.selection-bar{display:flex;align-items:center;gap:8px;background:#fff7e8;border:1px solid #ead7ad;border-radius:9px;padding:8px 10px}
 .toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.out-actions{display:flex;gap:8px;align-items:center;margin-left:auto;padding-left:12px;border-left:1px solid #e1e6e2}
+@media(max-width:700px){.out-actions{margin-left:0;border-left:0;padding-left:0}}
 .date-box{display:flex;align-items:center;gap:7px;background:#edf6f0;border:1px solid #cfe3d5;border-radius:8px;padding:6px 9px}.date-box label{font-size:12px;font-weight:650}
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.clickable{cursor:pointer}
 .help{font-size:11px;color:#657169;margin-top:4px;line-height:1.4}.error-list{max-height:260px;overflow:auto;background:#fff8f6;border:1px solid #f1c9c1;padding:10px;border-radius:8px;font-size:12px}
@@ -60,7 +67,7 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .excel-search{width:100%;border:1px solid #d7ddd8;border-radius:7px;padding:7px 9px;margin-bottom:8px;font:inherit}
 .excel-check-all{display:flex;gap:8px;align-items:center;padding:6px 2px;border-bottom:1px solid #e8ece9}.excel-values{max-height:190px;overflow:auto;margin:5px 0}.excel-value{display:flex;gap:8px;align-items:center;padding:5px 2px}.excel-value.hidden{display:none}.excel-value span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .excel-actions{display:flex;justify-content:flex-end;gap:7px;border-top:1px solid #e8ece9;padding-top:9px}.excel-actions button{border:1px solid #d6ddd7;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}.excel-actions .excel-ok{border-color:#7d9a85;background:#f7faf8}.excel-actions .excel-clear{color:#b14d3d}
-.iatf-qty{width:62px!important;min-width:62px!important;max-width:62px;text-align:center;padding-left:4px!important;padding-right:4px!important}.iatf-result{width:52px!important;min-width:52px!important;max-width:52px;text-align:center;text-transform:uppercase;padding-left:4px!important;padding-right:4px!important}.iatf-sire{min-width:220px!important}
+.iatf-qty{width:48px!important;min-width:48px!important;max-width:48px;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{min-width:150px!important}.iatf-retorno{min-width:110px!important}
 
 @media(max-width:1050px){.cards{grid-template-columns:repeat(2,1fr)}.chart-grid,.settings-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app{grid-template-columns:72px 1fr}.sidebar{padding:18px 9px}.brand>div:not(.logo),.nav span,.sidebar-foot span:last-child{display:none}.brand{justify-content:center;padding:0 0 22px}.nav{justify-content:center;font-size:18px}main{padding:0 14px 30px}}
@@ -78,12 +85,13 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
     <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
+  <div class="side-season"><label>Estação</label><select id="seasonHeader"></select></div>
   <div class="sidebar-foot"><span class="dot" id="syncDot"></span><span id="saveStatus">Conectando...</span></div>
 </aside>
 <main>
 <header>
   <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub"></p></div>
-  <div class="header-actions"><div class="season-pill"><span class="muted">Estação</span><select id="seasonHeader"></select></div><div id="pageActions"></div></div>
+  <div class="header-actions"><div id="pageActions"></div></div>
 </header>
 <section id="content"></section>
 </main></div>
@@ -107,7 +115,7 @@ let db=null,page='dashboard',iatfCategory='',iatfCycle=1,animalSelecting=false,a
 let animalSort={key:'rgd',dir:1},iatfSort={key:'rgd',dir:1},stockSort={key:'saldo',dir:-1};
 let animalFilters={rgd:'',firstSire:'',category:'',status:''};
 let iatfFilters={rgd:'',firstSire:'',qty:'',result:'',category:'',cycle:1};
-let stockFilters={name:'',tankName:'',tank:'',caneca:'',saldo:''};
+let stockFilters={name:'',rgdTouro:'',tank:'',caneca:'',saldo:''};
 let excelFilters={animals:{},iatf:{},stock:{}};
 let excelFilterContext=null;
 
@@ -128,20 +136,60 @@ function migrate(x){
   x.cycleDates=x.cycleDates||{};
   x.animals=x.animals||[];x.semen=x.semen||[];x.iatf=x.iatf||[];
   x.animals.forEach(a=>{a.active=true});
-  x.semen.forEach(s=>{s.active=true;s.tankName=s.tankName??s.name;s.addedDate=s.addedDate||''});
+
+  // --- MIGRAÇÃO v7: o "touro" passa a ser o antigo NOME DO BOTIJÃO ---
+  // Onde o nome do botijão estava vazio, mantém o cadastro antigo (joga pro lado).
+  if(!x.meta.stockMigrated_v7){
+    const rename={};
+    (x.semen||[]).forEach(s=>{
+      const novo=String(s.tankName||'').trim()||String(s.name||'').trim();
+      if(novo && novo!==s.name) rename[s.name]=novo;
+      s.name=novo;
+    });
+    // remapeia acasalamentos das matrizes e das IATFs
+    (x.animals||[]).forEach(a=>{if(rename[a.firstSire])a.firstSire=rename[a.firstSire]});
+    (x.iatf||[]).forEach(r=>{
+      if(rename[r.firstSire])r.firstSire=rename[r.firstSire];
+      if(rename[r.secondSire])r.secondSire=rename[r.secondSire];
+    });
+    // junta eventuais duplicados criados pela fusão
+    const byName={};const merged=[];
+    (x.semen||[]).forEach(s=>{
+      const k=norm(s.name);
+      if(!k)return;
+      if(byName[k]){
+        byName[k].initial=Number(byName[k].initial||0)+Number(s.initial||0);
+        byName[k].tank=byName[k].tank||s.tank;
+        byName[k].caneca=byName[k].caneca||s.caneca;
+      }else{byName[k]=s;merged.push(s)}
+    });
+    x.semen=merged;
+    x.meta.stockMigrated_v7=true;
+  }
+
+  x.semen.forEach(s=>{
+    s.active=true;
+    s.rgdTouro=s.rgdTouro||'';
+    s.addedDate=s.addedDate||'';
+    if(s.usedOverride===undefined)s.usedOverride=null;
+    delete s.tankName;
+  });
   x.iatf.forEach(r=>{
     r.seasonId=r.seasonId||x.meta.activeSeasonId;
     if(r.date && !((x.cycleDates[r.seasonId]||{})[r.cycle])){
       x.cycleDates[r.seasonId]=x.cycleDates[r.seasonId]||{};
       x.cycleDates[r.seasonId][r.cycle]=r.date;
     }
-    r.firstSire=(r.secondSire||r.firstSire||'').trim();
-    delete r.secondSire; delete r.date;
+    delete r.date;
+    r.firstSire=String(r.firstSire||'').trim();
+    r.secondSire=String(r.secondSire||'').trim();
     r.return=r.return||'';
-    r.qty=Number(r.qty||0); r.result=norm(r.result);
+    r.qty=Number(r.qty||0); r.result=normResult(r.result);
   });
   return x
 }
+// PRT substitui o antigo "M" (matar). PRT conta como não-prenha nos cálculos.
+function normResult(v){v=norm(v);if(v==='M')v='PRT';return ['P','V','PRT'].includes(v)?v:''}
 function setSyncStatus(kind,text){
   const dot=$('#syncDot'), s=$('#saveStatus');
   const colors={ok:'#6fd598',saving:'#e0b84f',error:'#e35d50',offline:'#e35d50'};
@@ -177,16 +225,18 @@ function sireNames(){return [...new Set(db.semen.map(s=>String(s.name||'').trim(
 function sireExists(name){const n=norm(name);return sireNames().some(x=>norm(x)===n)}
 function bullDatalist(){return `<datalist id="bullsList">${sireNames().map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>`}
 function usedSemen(){const u={};db.iatf.forEach(r=>{const s=String(r.firstSire||'').trim();if(s&&Number(r.qty)>0)u[s]=(u[s]||0)+Number(r.qty)});return u}
-function stockBalance(s){return Number(s.initial||0)-(usedSemen()[s.name]||0)}
-function normalizedResult(r){return norm(r)}
-function isDiagnosed(r){return ['P','V','M'].includes(norm(r))}
+function usedAuto(s){return usedSemen()[s.name]||0}
+function usedEffective(s){return (s.usedOverride===null||s.usedOverride===undefined)?usedAuto(s):Number(s.usedOverride||0)}
+function stockBalance(s){return Number(s.initial||0)-usedEffective(s)}
+function normalizedResult(r){return normResult(r)}
+function isDiagnosed(r){return ['P','V','PRT'].includes(normResult(r))}
 function latestStatus(rgd){
   const rows=seasonRows().filter(r=>r.rgd===rgd&&isDiagnosed(r.result)).sort((a,b)=>Number(b.cycle)-Number(a.cycle));
-  return rows.length?norm(rows[0].result):''
+  return rows.length?normResult(rows[0].result):''
 }
 function catClass(c){return c==='Vacas'?'cat-vacas':c==='Primíparas'?'cat-primi':'cat-preco'}
-function resClass(r){return r==='P'?'res-p':r==='V'?'res-v':r==='M'?'res-m':'res-none'}
-function statusLabel(r){return r==='P'?'Prenha':r==='V'?'Vazia':r==='M'?'Matar':'Sem resultado'}
+function resClass(r){return r==='P'?'res-p':r==='V'?'res-v':r==='PRT'?'res-m':'res-none'}
+function statusLabel(r){return r==='P'?'Prenha':r==='V'?'Vazia':r==='PRT'?'PRT':'Sem resultado'}
 function title(t,s){$('#pageTitle').textContent=t;$('#pageSub').textContent=s||''}
 function openModal(h){$('#modalBody').innerHTML=h;$('#modal').classList.remove('hidden')}
 function closeModal(){$('#modal').classList.add('hidden')}
@@ -277,7 +327,7 @@ function setActions(h){$('#pageActions').innerHTML=h||''}
 function rawRowsForExcel(kind){
   if(kind==='animals')return db.animals.map(a=>({...a,status:latestStatus(a.rgd)}));
   if(kind==='iatf')return seasonRows().filter(r=>(!iatfCategory||r.category===iatfCategory)&&Number(r.cycle)===Number(iatfCycle));
-  if(kind==='stock'){const u=usedSemen();return db.semen.map(s=>({...s,used:u[s.name]||0,saldo:stockBalance(s)}))}
+  if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   return []
 }
 function excelValue(row,key){const v=row?.[key];return v===null||v===undefined?'':String(v)}
@@ -316,7 +366,7 @@ document.addEventListener('click',e=>{const p=$('#excelFilterPopup');if(p&&!p.co
 
 /* DASHBOARD */
 function finalOutcomeCounts(){
-  const counts={P:0,V:0,M:0,none:0};
+  const counts={P:0,V:0,PRT:0,none:0};
   db.animals.forEach(a=>{const s=latestStatus(a.rgd);if(s)counts[s]++;else counts.none++});
   return counts
 }
@@ -366,9 +416,9 @@ function dashboard(){
     <div class="card kpi"><div class="label">Prenhez 1ª IATF</div><div class="value">${c1.length?pct(c1p.length,c1.length)+'%':'—'}</div><div class="hint">${c1.length?c1p.length+' prenhas em '+c1.length+' resultados':'Sem resultados lançados na 1ª IATF'}</div></div>
     <div class="card kpi"><div class="label">Prenhas</div><div class="value">${oc.P}</div><div class="hint">situação final das matrizes</div></div>
     <div class="card kpi"><div class="label">Vazias</div><div class="value">${oc.V}</div><div class="hint">situação final das matrizes</div></div>
-    <div class="card kpi"><div class="label">Matar</div><div class="value">${oc.M}</div><div class="hint">situação final das matrizes</div></div>
+    <div class="card kpi"><div class="label">PRT restantes</div><div class="value">${oc.PRT}</div><div class="hint">aguardando retorno manual</div></div>
     <div class="card kpi"><div class="label">Matrizes</div><div class="value">${db.animals.length}</div><div class="hint">cadastro geral</div></div>
-    <div class="card kpi"><div class="label">Touros disponíveis</div><div class="value">${sireNames().length}</div><div class="hint">inclui saldo zero</div></div>
+    <div class="card kpi"><div class="label">Touros cadastrados</div><div class="value">${sireNames().length}</div><div class="hint">inclui saldo zero</div></div>
     <div class="card kpi"><div class="label">Doses em saldo</div><div class="value">${db.semen.reduce((a,s)=>a+stockBalance(s),0)}</div><div class="hint">saldo automático</div></div>
   </div>
   <div class="chart-grid section"><div class="chart"><h3>% de prenhez por IATF</h3><div class="sub">P ÷ (P + V + M)</div>${pregnancyCycleChart()}</div><div class="chart"><h3>Touros mais usados</h3><div class="sub">Quantidade de inseminações na estação</div>${topBulls()}</div></div>
@@ -391,17 +441,25 @@ function animals(){
   title('Matrizes','Cadastro geral e situação na '+activeSeason().name);
   setActions('');
   $('#content').innerHTML=`
-  <div class="toolbar"><div class="quick-add">
-    <button class="primary" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button>
-    <button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo Excel</button>
-    <button class="ghost" onclick="exportAnimals()">⬇ Exportar Excel</button>
-    <button class="ghost" onclick="toggleAnimalSelection()">${animalSelecting?'Cancelar seleção':'☑ Selecionar matrizes'}</button>
-    ${animalSelecting?`<button class="danger-btn" onclick="deleteSelectedAnimals()">Excluir selecionadas (${animalSelected.size})</button>`:''}
-  </div></div>
-  <div class="notice green"><strong>Importação segura:</strong> o Excel inteiro é rejeitado se algum 1º acasalamento não existir no Estoque. Touros com saldo zero continuam válidos.</div>
+  ${bullDatalist()}
+  <div class="toolbar">
+    <div class="quick-add">
+      <button class="primary" onclick="addBlankAnimal()">+ Linha em branco</button>
+      <button class="ghost" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button>
+      <button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo Excel</button>
+      <button class="ghost" onclick="toggleAnimalSelection()">${animalSelecting?'Cancelar seleção':'☑ Selecionar'}</button>
+      ${animalSelecting?`<button class="danger-btn" onclick="deleteSelectedAnimals()">Excluir selecionadas (${animalSelected.size})</button>`:''}
+    </div>
+    <div class="out-actions"><button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
+  </div>
+  <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente.</div>
   <div id="animalTable"></div>`;
   renderAnimalTable()
 }
+function addBlankAnimal(){
+  db.animals.unshift({id:uid('a'),rgd:'',firstSire:'',category:'Vacas',active:true});
+  save();animals()
+} window.addBlankAnimal=addBlankAnimal;
 function renderAnimalTable(){
   const root=$('#animalTable');if(!root)return;const rows=animalRowsFiltered();
   const total=db.animals.length;
@@ -409,8 +467,34 @@ function renderAnimalTable(){
   <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th></th></tr>
   </thead><tbody>${rows.map(a=>`<tr>
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
-  <td><strong>${esc(a.rgd)}</strong></td><td>${esc(a.firstSire)}</td><td><span class="badge ${catClass(a.category)}">${esc(a.category)}</span></td><td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td><td><button class="mini" onclick="editAnimal('${a.id}')">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
+  <td><input class="cell-input" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
+  <td><input class="cell-input" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
+  <td><select class="cell-input" style="min-width:120px" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
+  <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
 }
+// Edição direta na tabela de matrizes, espelhando no IATF
+function editAnimalCell(id,key,val,el){
+  const a=db.animals.find(x=>x.id===id);if(!a)return;
+  val=String(val||'').trim();
+  if(key==='rgd'){
+    const old=a.rgd;
+    if(!val){alert('O RGD não pode ficar vazio.');el.value=old;return}
+    if(db.animals.some(x=>x.id!==id&&norm(x.rgd)===norm(val))){alert('Já existe uma matriz com esse RGD.');el.value=old;return}
+    a.rgd=val;
+    db.iatf.forEach(r=>{if(r.rgd===old)r.rgd=val});
+  }else if(key==='firstSire'){
+    if(val && !sireExists(val)){alert(`O touro "${val}" não existe no Estoque. Cadastre em Estoque primeiro.`);el.value=el.dataset.prev||'';return}
+    a.firstSire=val;
+    // espelha em TODAS as IATFs dessa matriz
+    db.iatf.forEach(r=>{if(r.rgd===a.rgd)r.firstSire=val});
+  }else if(key==='category'){
+    a.category=val;
+    db.iatf.forEach(r=>{if(r.rgd===a.rgd)r.category=val});
+  }
+  el.dataset.prev=val;
+  save();renderAnimalTable()
+} window.editAnimalCell=editAnimalCell;
 function toggleAnimalSelection(){animalSelecting=!animalSelecting;if(!animalSelecting)animalSelected.clear();animals()} window.toggleAnimalSelection=toggleAnimalSelection;
 function selectAnimal(id,on){on?animalSelected.add(id):animalSelected.delete(id);const b=$('.danger-btn');if(b)b.textContent=`Excluir selecionadas (${animalSelected.size})`} window.selectAnimal=selectAnimal;
 function deleteSelectedAnimals(){if(!animalSelected.size)return alert('Selecione pelo menos uma matriz.');if(!confirm(`Excluir ${animalSelected.size} matrizes e seus lançamentos de IATF?`))return;const rgds=new Set(db.animals.filter(a=>animalSelected.has(a.id)).map(a=>a.rgd));db.animals=db.animals.filter(a=>!animalSelected.has(a.id));db.iatf=db.iatf.filter(r=>!rgds.has(r.rgd));animalSelected.clear();animalSelecting=false;save();animals()} window.deleteSelectedAnimals=deleteSelectedAnimals;
@@ -426,7 +510,7 @@ window.modalAnimal=modalAnimal;window.editAnimal=id=>modalAnimal(id);
 function saveAnimal(id){
   const rgd=$('#mRgd').value.trim(),sire=$('#mSire').value.trim(),cat=$('#mCat').value;
   if(!rgd)return alert('Informe o RGD.');
-  if(!sireExists(sire))return alert(`O touro "${sire}" não existe no Estoque. Cadastre o sêmen primeiro.`);
+  if(sire && !sireExists(sire))return alert(`O touro "${sire}" não existe no Estoque. Cadastre o sêmen primeiro.`);
   if(db.animals.some(x=>norm(x.rgd)===norm(rgd)&&x.id!==id))return alert('Já existe uma matriz com esse RGD.');
   if(id){const a=db.animals.find(x=>x.id===id),old=a.rgd;Object.assign(a,{rgd,firstSire:sire,category:cat});db.iatf.forEach(r=>{if(r.rgd===old){r.rgd=rgd;r.category=cat;if(!r.firstSire)r.firstSire=sire}})}
   else db.animals.push({id:uid('a'),rgd,firstSire:sire,category:cat,active:true});
@@ -444,76 +528,138 @@ function iff(k,v){iatfFilters[k]=v;renderIatfRows()} window.iff=iff;
 function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
   $('#content').innerHTML=`
-  ${bullDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="M"></option></datalist>
+  ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="toolbar"><div class="filters">
     <select id="iatfCatSel" onchange="iatfCategory=this.value;renderIatfRows()"><option value="">Todas as categorias</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select>
     <select id="cycleSel" onchange="iatfCycle=Number(this.value);renderIatfRows()">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select>
     <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
-  </div><div class="quick-add"><button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openIatfOutput('export')">⬇ Exportar Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green"><strong>Lançamento rápido:</strong> Resultado aceita P, V ou M. Digite e pressione Enter para descer. Vazia entra automaticamente na próxima IATF. P e M não seguem.</div>
+    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+  </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
+  <div class="notice green"><strong>Lançamento rápido:</strong> Resultado aceita <strong>P</strong>, <strong>V</strong> ou <strong>PRT</strong>. Digite e pressione Enter para descer. Só a Vazia (V) entra automaticamente na próxima IATF — a PRT fica na lista do botão "PRTs" para você devolver manualmente.</div>
   <div id="iatfTable"></div>`;renderIatfRows()
+}
+function animalDatalist(){return `<datalist id="animalsList">${db.animals.map(a=>`<option value="${esc(a.rgd)}">${esc(a.category)}</option>`).join('')}</datalist>`}
+function prtAnimals(){
+  return db.animals.filter(a=>latestStatus(a.rgd)==='PRT').map(a=>{
+    const rows=seasonRows().filter(r=>r.rgd===a.rgd&&normResult(r.result)==='PRT').sort((x,y)=>Number(y.cycle)-Number(x.cycle));
+    return {...a, prtCycle: rows.length?Number(rows[0].cycle):''}
+  })
 }
 function renderIatfRows(){
   const root=$('#iatfTable');if(!root)return;const rows=iatfRowsFiltered();
   root.innerHTML=`<div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Resultado')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onchange="updateIatfSire(this)"></td>
+  <td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
   <td><input class="cell-input nav-qtd iatf-qty" inputmode="decimal" data-id="${r.id}" value="${r.qty||''}" onkeydown="iatfEnter(event,'nav-qtd')" onchange="updateIatfCell('${r.id}','qty',this.value)"></td>
-  <td><input class="cell-input nav-result iatf-result" list="resultList" maxlength="1" data-id="${r.id}" value="${esc(r.result||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-result')" onchange="updateIatfResult('${r.id}',this.value,this)"></td>
-  <td><input class="cell-input" type="date" value="${esc(r.return||'')}" onchange="updateIatfCell('${r.id}','return',this.value)"></td>
+  <td><input class="cell-input nav-result iatf-result" list="resultList" maxlength="3" data-id="${r.id}" value="${esc(r.result||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-result')" onchange="updateIatfResult('${r.id}',this.value,this)"></td>
+  <td><input class="cell-input iatf-retorno" type="text" value="${esc(r.return||'')}" placeholder="—" onchange="updateIatfCell('${r.id}','return',this.value)"></td>
   <td><span class="badge ${catClass(r.category)}">${esc(r.category)}</span></td>
   <td><button class="mini" onclick="deleteIatf('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function iatfEnter(e,cls){if(e.key!=='Enter')return;e.preventDefault();e.target.blur();const els=$$('.'+cls);const i=els.indexOf(e.target);if(els[i+1]){els[i+1].focus();els[i+1].select()}} window.iatfEnter=iatfEnter;
 function updateIatfCell(id,key,val){const r=db.iatf.find(x=>x.id===id);if(!r)return;r[key]=key==='qty'?Number(String(val).replace(',','.'))||0:val;save()} window.updateIatfCell=updateIatfCell;
-function updateIatfSire(el){const val=el.value.trim();if(!sireExists(val)){alert(`O touro "${val}" não existe no Estoque.`);el.value=el.dataset.prev||'';return}const r=db.iatf.find(x=>x.id===el.dataset.id);if(r){r.firstSire=val;save();el.dataset.prev=val}} window.updateIatfSire=updateIatfSire;
+function updateIatfSire(el){
+  const val=el.value.trim();
+  if(val && !sireExists(val)){alert(`O touro "${val}" não existe no Estoque.`);el.value=el.dataset.prev||'';return}
+  const r=db.iatf.find(x=>x.id===el.dataset.id);
+  if(r){
+    r.firstSire=val;
+    // espelha na aba Matrizes e nas demais IATFs da mesma matriz
+    const a=db.animals.find(x=>x.rgd===r.rgd); if(a)a.firstSire=val;
+    db.iatf.forEach(x=>{if(x.rgd===r.rgd)x.firstSire=val});
+    save();el.dataset.prev=val;renderIatfRows()
+  }
+} window.updateIatfSire=updateIatfSire;
 function ensureNextIatf(r){
   if(Number(r.cycle)>=12)return;
   const next=Number(r.cycle)+1;
   if(!seasonRows().some(x=>x.rgd===r.rgd&&Number(x.cycle)===next)){
-    db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:r.category,cycle:next,rgd:r.rgd,firstSire:r.firstSire,qty:0,result:'',return:''})
+    db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:r.category,cycle:next,rgd:r.rgd,firstSire:r.firstSire,secondSire:'',qty:0,result:'',return:''})
   }
 }
+// Remove os ciclos seguintes dessa matriz que ainda estão vazios (sem qtd/resultado/retorno)
+function removeEmptyFollowUps(r){
+  db.iatf=db.iatf.filter(x=>!(x.seasonId===r.seasonId&&x.rgd===r.rgd&&Number(x.cycle)>Number(r.cycle)&&!normResult(x.result)&&!Number(x.qty)&&!String(x.return||'').trim()&&!String(x.secondSire||'').trim()))
+}
 function updateIatfResult(id,val,el){
-  val=norm(val);if(val&&!['P','V','M'].includes(val)){alert('Resultado deve ser P, V ou M.');el.value='';val=''}
-  const r=db.iatf.find(x=>x.id===id);if(!r)return;r.result=val;
-  if(val==='V')ensureNextIatf(r);
-  if(['P','M'].includes(val)){db.iatf=db.iatf.filter(x=>!(x.seasonId===r.seasonId&&x.rgd===r.rgd&&Number(x.cycle)>Number(r.cycle)&&!x.result&&!Number(x.qty)&&!x.return))}
-  save()
+  val=normResult(val);
+  if(el.value.trim() && !val){alert('Resultado deve ser P, V ou PRT.');el.value='';}
+  const r=db.iatf.find(x=>x.id===id);if(!r)return;
+  r.result=val; el.value=val;
+  // Só V avança para a próxima IATF. P e PRT não avançam.
+  // Apagar o resultado (ou trocar por P/PRT) remove os ciclos seguintes que estavam vazios.
+  if(val==='V')ensureNextIatf(r); else removeEmptyFollowUps(r);
+  save();renderIatfRows()
 } window.updateIatfResult=updateIatfResult;
+
+/* PAINEL DE PRTs — devolver manualmente para uma IATF */
+function openPrtPanel(){
+  const list=prtAnimals();
+  if(!list.length)return openModal(`<h2>PRTs</h2><div class="notice green">Nenhuma matriz com resultado PRT nesta estação.</div><div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
+  const porCat=['Vacas','Primíparas','Precocinha'].map(cat=>{
+    const l=list.filter(a=>a.category===cat);
+    if(!l.length)return '';
+    return `<div style="margin-bottom:14px"><div class="sub" style="font-weight:700;margin-bottom:6px"><span class="badge ${catClass(cat)}">${cat}</span> — ${l.length}</div>
+    ${l.map(a=>`<label class="excel-value" style="padding:6px 2px;border-bottom:1px solid #edf0ee"><input type="checkbox" class="prt-pick" value="${esc(a.rgd)}"><span><strong>${esc(a.rgd)}</strong> <span class="muted">— PRT na ${a.prtCycle}ª IATF</span></span></label>`).join('')}</div>`
+  }).join('');
+  openModal(`<h2>PRTs — devolver para uma IATF</h2>
+  <div class="notice green">Marque as matrizes que voltam a ser trabalhadas e escolha em qual IATF elas devem reaparecer para você classificar de novo.</div>
+  <div style="max-height:340px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px;padding:10px">${porCat}</div>
+  <div class="form-grid" style="margin-top:14px">
+    <div class="field"><label>Devolver para</label><select id="prtCycle">${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
+    <div class="field" style="justify-content:flex-end"><button class="ghost" onclick="prtSelectAll()">Marcar todas</button></div>
+  </div>
+  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="returnPrts()">Devolver selecionadas</button></div>`)
+} window.openPrtPanel=openPrtPanel;
+function prtSelectAll(){$$('.prt-pick').forEach(x=>x.checked=true)} window.prtSelectAll=prtSelectAll;
+function returnPrts(){
+  const picks=$$('.prt-pick').filter(x=>x.checked).map(x=>x.value);
+  if(!picks.length)return alert('Marque pelo menos uma matriz.');
+  const cy=Number($('#prtCycle').value);
+  let criadas=0,jaExistiam=0;
+  picks.forEach(rgd=>{
+    const a=db.animals.find(x=>x.rgd===rgd);if(!a)return;
+    if(seasonRows().some(r=>r.rgd===rgd&&Number(r.cycle)===cy)){jaExistiam++;return}
+    db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:cy,rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+    criadas++
+  });
+  save();closeModal();iatfCycle=cy;
+  alert(`${criadas} matriz(es) devolvida(s) para a ${cy}ª IATF.`+(jaExistiam?`\n${jaExistiam} já estavam nessa IATF.`:''));
+  iatfPage()
+} window.returnPrts=returnPrts;
 function quickAddAnimalToCycle(){
-  openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>${bullDatalist()}<div class="form-grid">
-  <div class="field full"><label>Matriz cadastrada (opcional)</label><select id="qExisting"><option value="">— cadastrar uma nova —</option>${db.animals.map(a=>`<option value="${a.id}">${esc(a.rgd)} — ${esc(a.category)}</option>`).join('')}</select></div>
-  <div class="field"><label>RGD nova</label><input id="qRgd" class="input"></div><div class="field"><label>Categoria</label><select id="qCat">${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select></div>
-  <div class="field full"><label>1º acasalamento</label><input id="qSire" list="bullsList" class="input" placeholder="Digite para buscar no estoque"></div></div>
-  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar</button></div>`)
+  openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>${animalDatalist()}
+  <div class="notice green">Só é possível adicionar matrizes que já estão cadastradas na aba <strong>Matrizes</strong>. Para cadastrar uma matriz nova, use a aba Matrizes.</div>
+  <div class="form-grid">
+  <div class="field full"><label>Matriz (digite o RGD para buscar)</label><input id="qRgdPick" list="animalsList" class="input" placeholder="Ex: MRA 11071" autocomplete="off"><div class="help">Comece a digitar que a lista filtra sozinha.</div></div>
+  </div>
+  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar</button></div>`);
+  setTimeout(()=>{const el=$('#qRgdPick');if(el)el.focus()},60)
 } window.quickAddAnimalToCycle=quickAddAnimalToCycle;
 function saveQuickAnimal(){
-  let a;const ex=$('#qExisting').value;
-  if(ex)a=db.animals.find(x=>x.id===ex);else{
-    const rgd=$('#qRgd').value.trim(),sire=$('#qSire').value.trim(),cat=$('#qCat').value;
-    if(!rgd)return alert('Informe o RGD.');if(!sireExists(sire))return alert(`O touro "${sire}" não existe no Estoque.`);
-    if(db.animals.some(x=>norm(x.rgd)===norm(rgd)))return alert('Esse RGD já existe. Escolha na lista.');
-    a={id:uid('a'),rgd,category:cat,firstSire:sire,active:true};db.animals.push(a)
-  }
+  const rgd=$('#qRgdPick').value.trim();
+  if(!rgd)return alert('Digite o RGD da matriz.');
+  const a=db.animals.find(x=>norm(x.rgd)===norm(rgd));
+  if(!a)return alert(`A matriz "${rgd}" não está cadastrada. Cadastre primeiro na aba Matrizes.`);
   if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle))return alert('Essa matriz já está nesta IATF.');
-  db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire,qty:0,result:'',return:''});
-  save();closeModal();iatfCategory=a.category;renderIatfRows()
+  db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+  save();closeModal();iatfCategory=a.category;iatfPage()
 } window.saveQuickAnimal=saveQuickAnimal;
 function deleteIatf(id){if(!confirm('Excluir este lançamento?'))return;db.iatf=db.iatf.filter(x=>x.id!==id);save();renderIatfRows()} window.deleteIatf=deleteIatf;
 function openIatfOutput(mode){
   openModal(`<h2>${mode==='print'?'Imprimir':'Exportar'} IATF</h2><div class="form-grid">
   <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${iatfCategory===c?'selected':''}>${c}</option>`).join('')}</select></div>
   <div class="field"><label>Número da IATF</label><select id="outCycle"><option value="">Todas</option>${Array.from({length:12},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
-  <div class="field"><label>Resultado</label><select id="outResult"><option value="">Todos</option><option>P</option><option>V</option><option>M</option></select></div>
+  <div class="field"><label>Resultado</label><select id="outResult"><option value="">Todos</option><option>P</option><option>V</option><option>PRT</option></select></div>
   <div class="field"><label>Filtros da tela</label><select id="outCurrent"><option value="yes">Respeitar filtros atuais</option><option value="no">Ignorar filtros da tabela</option></select></div></div>
   <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="runIatfOutput('${mode}')">${mode==='print'?'Imprimir':'Exportar Excel'}</button></div>`)
 } window.openIatfOutput=openIatfOutput;
 function outputIatfRows(){
   const cat=$('#outCat').value,cy=$('#outCycle').value,res=$('#outResult').value,current=$('#outCurrent').value==='yes';
-  let rows=seasonRows().filter(r=>(!cat||r.category===cat)&&(!cy||Number(r.cycle)===Number(cy))&&(!res||norm(r.result)===res));
+  let rows=seasonRows().filter(r=>(!cat||r.category===cat)&&(!cy||Number(r.cycle)===Number(cy))&&(!res||normResult(r.result)===res));
   if(current)rows=rows.filter(r=>excelPass('iatf',r));
   return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||a.category.localeCompare(b.category)||a.rgd.localeCompare(b.rgd))
 }
@@ -521,49 +667,69 @@ function runIatfOutput(mode){const rows=outputIatfRows();if(!rows.length)return 
 
 /* ESTOQUE */
 function stockRowsFiltered(){
-  const u=usedSemen();let rows=db.semen.map(s=>({...s,saldo:stockBalance(s),used:u[s.name]||0})).filter(s=>excelPass('stock',s));
+  let rows=db.semen.map(s=>({...s,saldo:stockBalance(s),used:usedEffective(s)})).filter(s=>excelPass('stock',s));
   const k=stockSort.key,d=stockSort.dir;rows.sort((a,b)=>typeof a[k]==='number'?(a[k]-b[k])*d:String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
 function sortStock(k){if(stockSort.key===k)stockSort.dir*=-1;else stockSort={key:k,dir:1};renderStock()} window.sortStock=sortStock;
 function sf(k,v){stockFilters[k]=v;renderStock()} window.sf=sf;
 function stock(){
   title('Estoque','Cadastro de sêmen, entradas e saldo automático');setActions('');
-  $('#content').innerHTML=`<div class="toolbar"><div class="quick-add">
-  <button class="primary" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
-  <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button>
+  $('#content').innerHTML=`<div class="toolbar">
+  <div class="quick-add">
+  <button class="primary" onclick="addBlankStock()">+ Linha em branco</button>
   <button class="ghost" onclick="modalStock()">+ Entrada manual</button>
-  <button class="ghost" onclick="exportStock()">⬇ Exportar Excel</button>
-  <button class="ghost" onclick="printStock()">🖨 Imprimir</button></div></div>
-  <div class="notice green">Clique diretamente nas células para editar. O saldo = doses cadastradas − doses utilizadas nas IATFs.</div><div id="stockTable"></div>`;renderStock()
+  <button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
+  <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button></div>
+  <div class="out-actions"><button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
+  <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div>`;renderStock()
 }
 function renderStock(){
   const root=$('#stockTable');if(!root)return;const rows=stockRowsFiltered();
   const totalDoses=rows.reduce((a,s)=>a+Number(s.initial||0),0),totalUsado=rows.reduce((a,s)=>a+Number(s.used||0),0),totalSaldo=rows.reduce((a,s)=>a+Number(s.saldo||0),0);
   const fmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> registros no filtro</div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('stock','name','Cadastro sêmen')}</th><th>${excelHead('stock','tankName','Nome botijão')}</th><th>${excelHead('stock','tank','Botijão')}</th><th>${excelHead('stock','caneca','Caneca')}</th><th>${excelHead('stock','initial','Qtd doses')}</th><th>${excelHead('stock','used','Usado')}</th><th>${excelHead('stock','saldo','Saldo')}</th><th>${excelHead('stock','addedDate','Data entrada')}</th><th></th></tr>
-  </thead><tbody>${rows.map(s=>`<tr>
-  <td><input class="cell-input" value="${esc(s.name)}" data-old="${esc(s.name)}" onchange="editStockCell('${s.id}','name',this.value,this)"></td>
-  <td><input class="cell-input" value="${esc(s.tankName||'')}" onchange="editStockCell('${s.id}','tankName',this.value,this)"></td>
+  <tr><th>${excelHead('stock','name','Touro')}</th><th>${excelHead('stock','rgdTouro','RGD do touro')}</th><th>${excelHead('stock','tank','Botijão')}</th><th>${excelHead('stock','caneca','Caneca')}</th><th>${excelHead('stock','initial','Qtd doses')}</th><th>${excelHead('stock','used','Usado')}</th><th>${excelHead('stock','saldo','Saldo')}</th><th>${excelHead('stock','addedDate','Data entrada')}</th><th></th></tr>
+  </thead><tbody>${rows.map(s=>{
+    const auto=usedAuto(s), manual=!(s.usedOverride===null||s.usedOverride===undefined);
+    return `<tr>
+  <td><input class="cell-input" style="min-width:210px;font-weight:600" value="${esc(s.name)}" data-old="${esc(s.name)}" onchange="editStockCell('${s.id}','name',this.value,this)"></td>
+  <td><input class="cell-input" value="${esc(s.rgdTouro||'')}" placeholder="—" onchange="editStockCell('${s.id}','rgdTouro',this.value,this)"></td>
   <td><input class="cell-input" value="${esc(s.tank||'')}" onchange="editStockCell('${s.id}','tank',this.value,this)"></td>
   <td><input class="cell-input" value="${esc(s.caneca||'')}" onchange="editStockCell('${s.id}','caneca',this.value,this)"></td>
   <td><input class="cell-input" inputmode="decimal" value="${Number(s.initial||0)}" onchange="editStockCell('${s.id}','initial',this.value,this)"></td>
-  <td>${s.used}</td><td class="${s.saldo<=0?'stock-low':'stock-ok'}"><strong>${s.saldo}</strong></td>
+  <td style="white-space:nowrap"><input class="cell-input" style="width:62px;min-width:62px;text-align:center;${manual?'font-weight:700;color:#a84d2b':''}" inputmode="decimal" value="${s.used}" title="${manual?'Ajustado manualmente. Automático pelas IATFs seria '+auto:'Calculado automaticamente pelas IATFs'}" onchange="editStockCell('${s.id}','used',this.value,this)">${manual?`<button class="mini" style="padding:2px 5px;margin-left:3px" title="Voltar ao cálculo automático (${auto})" onclick="clearUsedOverride('${s.id}')">↺</button>`:''}</td>
+  <td class="${s.saldo<=0?'stock-low':'stock-ok'}"><strong>${s.saldo}</strong></td>
   <td><input class="cell-input" type="date" value="${esc(s.addedDate||'')}" onchange="editStockCell('${s.id}','addedDate',this.value,this)"></td>
-  <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="4" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
+  <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`}).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="4" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
 }
+function addBlankStock(){
+  db.semen.unshift({id:uid('s'),name:'',rgdTouro:'',tank:'',caneca:'',initial:0,addedDate:'',usedOverride:null,active:true});
+  save();stock()
+} window.addBlankStock=addBlankStock;
+function clearUsedOverride(id){const s=db.semen.find(x=>x.id===id);if(!s)return;s.usedOverride=null;save();renderStock()} window.clearUsedOverride=clearUsedOverride;
 function editStockCell(id,key,val,el){
   const s=db.semen.find(x=>x.id===id);if(!s)return;
   if(key==='name'){
-    val=val.trim();const old=s.name;if(!val){alert('Nome não pode ficar vazio.');el.value=old;return}
+    val=val.trim();const old=s.name;
+    if(!val){if(old){alert('O nome do touro não pode ficar vazio.');el.value=old}return}
     if(db.semen.some(x=>x.id!==id&&norm(x.name)===norm(val))){alert('Já existe um cadastro com esse nome.');el.value=old;return}
     s.name=val;db.animals.forEach(a=>{if(a.firstSire===old)a.firstSire=val});db.iatf.forEach(r=>{if(r.firstSire===old)r.firstSire=val})
-  }else if(key==='initial')s.initial=Number(String(val).replace(',','.'))||0;else s[key]=val;
+  }else if(key==='initial'){s.initial=Number(String(val).replace(',','.'))||0}
+  else if(key==='used'){
+    const v=String(val).trim();
+    if(v===''){s.usedOverride=null}                       // vazio = volta ao automático
+    else{
+      const n=Number(v.replace(',','.'));
+      if(!Number.isFinite(n)||n<0){alert('Informe um número válido em "Usado".');renderStock();return}
+      s.usedOverride=(n===usedAuto(s))?null:n;            // igual ao automático = mantém automático
+    }
+  }
+  else s[key]=val;
   save();renderStock()
 } window.editStockCell=editStockCell;
 function modalStock(){
   openModal(`<h2>Entrada manual de sêmen</h2><div class="form-grid">
-  <div class="field full"><label>Cadastro sêmen / touro</label><input id="sName" class="input"></div><div class="field full"><label>Nome botijão</label><input id="sTankName" class="input"></div>
+  <div class="field full"><label>Touro</label><input id="sName" class="input" placeholder="Nome do touro como está no botijão"></div><div class="field full"><label>RGD do touro (opcional)</label><input id="sTankName" class="input"></div>
   <div class="field"><label>Botijão</label><input id="sTank" class="input"></div><div class="field"><label>Caneca</label><input id="sCaneca" class="input"></div>
   <div class="field"><label>Qtd doses</label><input id="sQty" class="input" type="number" min="0"></div><div class="field"><label>Data entrada</label><input id="sDate" class="input" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
   <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveStockManual()">Salvar</button></div>`)
@@ -571,8 +737,8 @@ function modalStock(){
 function saveStockManual(){
   const name=$('#sName').value.trim();if(!name)return alert('Informe o cadastro sêmen/touro.');
   const existing=db.semen.find(x=>norm(x.name)===norm(name)),q=Number($('#sQty').value||0);
-  if(existing){if(!confirm('Esse touro já existe. Somar '+q+' doses ao cadastro existente?'))return;existing.initial=Number(existing.initial||0)+q;if($('#sTankName').value.trim())existing.tankName=$('#sTankName').value.trim();if($('#sTank').value.trim())existing.tank=$('#sTank').value.trim();if($('#sCaneca').value.trim())existing.caneca=$('#sCaneca').value.trim();existing.addedDate=$('#sDate').value}
-  else db.semen.push({id:uid('s'),name,tankName:$('#sTankName').value.trim(),tank:$('#sTank').value.trim(),caneca:$('#sCaneca').value.trim(),initial:q,addedDate:$('#sDate').value,active:true});
+  if(existing){if(!confirm('Esse touro já existe. Somar '+q+' doses ao cadastro existente?'))return;existing.initial=Number(existing.initial||0)+q;if($('#sTankName').value.trim())existing.rgdTouro=$('#sTankName').value.trim();if($('#sTank').value.trim())existing.tank=$('#sTank').value.trim();if($('#sCaneca').value.trim())existing.caneca=$('#sCaneca').value.trim();existing.addedDate=$('#sDate').value}
+  else db.semen.push({id:uid('s'),name,rgdTouro:$('#sTankName').value.trim(),tank:$('#sTank').value.trim(),caneca:$('#sCaneca').value.trim(),initial:q,addedDate:$('#sDate').value,usedOverride:null,active:true});
   save();closeModal();stock()
 } window.saveStockManual=saveStockManual;
 function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(db.animals.some(a=>a.firstSire===s.name)||db.iatf.some(r=>r.firstSire===s.name))return alert('Esse touro está sendo usado em Matrizes/IATF e não pode ser excluído. Edite o nome ou mantenha saldo zero.');if(!confirm('Excluir este cadastro de sêmen?'))return;db.semen=db.semen.filter(x=>x.id!==id);save();renderStock()} window.deleteStock=deleteStock;
@@ -581,15 +747,68 @@ function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(db.
 function settings(){
   title('Configurações','Estações e cadastros');setActions('');
   $('#content').innerHTML=`<div class="settings-grid">
-  <div class="card"><h3>Estações de monta</h3><div class="sub">Use o mesmo sistema todo ano sem misturar IATFs.</div>${db.seasons.map(s=>`<div class="inline-stat"><div><strong>${esc(s.name)}</strong><div class="muted">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}</div></div><div class="mini-actions"><button class="mini" onclick="activateSeason('${s.id}')">${s.id===db.meta.activeSeasonId?'Atual':'Usar'}</button><button class="mini" onclick="modalSeason('${s.id}')">Editar</button></div></div>`).join('')}<div class="actions" style="justify-content:flex-start"><button class="primary" onclick="modalSeason()">+ Nova estação</button></div></div>
+  <div class="card"><h3>Estações de monta</h3><div class="sub">Use o mesmo sistema todo ano sem misturar IATFs.</div>${db.seasons.map(s=>`<div class="inline-stat"><div><strong>${esc(s.name)}</strong><div class="muted">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}</div></div><div class="mini-actions"><button class="mini" onclick="activateSeason('${s.id}')">${s.id===db.meta.activeSeasonId?'Atual':'Usar'}</button><button class="mini" onclick="modalSeason('${s.id}')">Editar</button>${db.seasons.length>1?`<button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="deleteSeason('${s.id}')">Excluir</button>`:''}</div></div>`).join('')}<div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="primary" onclick="modalSeason()">+ Nova estação</button><button class="ghost" onclick="exportSeasonAll()">⬇ Exportar estação (Excel)</button></div><div class="help">A exportação da estação gera um arquivo único com as abas Resumo, IATF, Matrizes e Estoque.</div></div>
   <div class="card"><h3>Dashboard</h3><div class="form-grid"><div class="field"><label>Mínimo de usos para ranking de touros</label><input id="cfgMin" class="input" type="number" min="1" value="${db.settings.bullMinUses}"></div><div class="field"><label>Força do ajuste estatístico</label><input id="cfgPrior" class="input" type="number" min="0" value="${db.settings.bullPriorStrength}"></div></div><div class="actions"><button class="primary" onclick="saveSettings()">Salvar</button></div></div></div>
-  <div class="settings-grid section"><div class="card"><h3>Matrizes</h3><div class="sub">Cadastro rápido manual ou em lote.</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="modalAnimal()">+ Matriz manual</button><button class="ghost" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo</button></div></div>
+  <div class="settings-grid section"><div class="card"><h3>Matrizes</h3><div class="sub">Cadastro rápido manual ou em lote.</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="go('animals')">Abrir Matrizes</button><button class="ghost" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo</button></div></div>
   <div class="card"><h3>Estoque / Touros</h3><div class="sub">Cadastre chegada de sêmen manualmente ou em lote.</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="modalStock()">+ Sêmen manual</button><button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo</button></div></div></div>`
 }
 function saveSettings(){db.settings.bullMinUses=Math.max(1,Number($('#cfgMin').value||5));db.settings.bullPriorStrength=Math.max(0,Number($('#cfgPrior').value||5));save();settings()} window.saveSettings=saveSettings;
-function modalSeason(id=''){const s=id?db.seasons.find(x=>x.id===id):null;openModal(`<h2>${s?'Editar':'Nova'} estação</h2><div class="form-grid"><div class="field full"><label>Nome</label><input id="seName" class="input" value="${esc(s?.name||'')}"></div><div class="field"><label>Data inicial</label><input id="seStart" type="date" class="input" value="${esc(s?.startDate||'')}"></div><div class="field"><label>Data final</label><input id="seEnd" type="date" class="input" value="${esc(s?.endDate||'')}"></div></div><div class="notice">A nova estação começa sem lançamentos de IATF. Matrizes e estoque permanecem cadastrados.</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
-function saveSeason(id){const name=$('#seName').value.trim();if(!name)return alert('Informe o nome.');const obj={name,startDate:$('#seStart').value,endDate:$('#seEnd').value,active:true};if(id)Object.assign(db.seasons.find(x=>x.id===id),obj);else{const n={id:uid('season'),...obj};db.seasons.push(n);db.meta.activeSeasonId=n.id;db.cycleDates[n.id]={}}save();closeModal();settings();renderSeasonSelector()} window.saveSeason=saveSeason;
+function modalSeason(id=''){const s=id?db.seasons.find(x=>x.id===id):null;openModal(`<h2>${s?'Editar':'Nova'} estação</h2><div class="form-grid"><div class="field full"><label>Nome</label><input id="seName" class="input" value="${esc(s?.name||'')}"></div><div class="field"><label>Data inicial</label><input id="seStart" type="date" class="input" value="${esc(s?.startDate||'')}"></div><div class="field"><label>Data final</label><input id="seEnd" type="date" class="input" value="${esc(s?.endDate||'')}"></div>${s?'':`<div class="field full"><label>Cadastro de matrizes</label><select id="seWipe"><option value="sim">Zerar (vou subir a lista nova)</option><option value="nao">Manter as matrizes atuais</option></select></div>`}</div>
+  <div class="notice">A nova estação começa sem lançamentos de IATF. O <strong>estoque de sêmen</strong> é sempre mantido.</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
+function saveSeason(id){
+  const name=$('#seName').value.trim();if(!name)return alert('Informe o nome.');
+  const obj={name,startDate:$('#seStart').value,endDate:$('#seEnd').value,active:true};
+  if(id){Object.assign(db.seasons.find(x=>x.id===id),obj)}
+  else{
+    const zerar=($('#seWipe')||{value:'sim'}).value==='sim';
+    if(zerar && db.animals.length && !confirm(`Criar "${name}" e APAGAR as ${db.animals.length} matrizes cadastradas?\n\nO estoque de sêmen e as estações anteriores permanecem.`))return;
+    const n={id:uid('season'),...obj};
+    db.seasons.push(n);db.meta.activeSeasonId=n.id;db.cycleDates[n.id]={};
+    if(zerar)db.animals=[];
+  }
+  save();closeModal();settings();renderSeasonSelector()
+} window.saveSeason=saveSeason;
 function activateSeason(id){db.meta.activeSeasonId=id;save();render()} window.activateSeason=activateSeason;
+function deleteSeason(id){
+  const s=db.seasons.find(x=>x.id===id);if(!s)return;
+  if(db.seasons.length<=1)return alert('Não é possível excluir a única estação cadastrada.');
+  const n=db.iatf.filter(r=>r.seasonId===id).length;
+  if(!confirm(`ATENÇÃO: excluir a estação "${s.name}"?\n\nIsso apaga ${n} lançamento(s) de IATF dessa estação. Matrizes e estoque de sêmen NÃO são apagados.`))return;
+  if(!confirm(`Confirme mais uma vez.\n\nEsta ação NÃO pode ser desfeita. Excluir definitivamente "${s.name}"?`))return;
+  db.seasons=db.seasons.filter(x=>x.id!==id);
+  db.iatf=db.iatf.filter(r=>r.seasonId!==id);
+  if(db.cycleDates)delete db.cycleDates[id];
+  if(db.meta.activeSeasonId===id)db.meta.activeSeasonId=db.seasons[0].id;
+  save();settings();renderSeasonSelector();
+  alert(`Estação "${s.name}" excluída.`)
+} window.deleteSeason=deleteSeason;
+
+/* Exportar estação completa (todas as abas num Excel só) */
+function exportSeasonAll(){
+  if(!needXLSX())return;
+  const est=activeSeason();
+  const wb=XLSX.utils.book_new();
+  const iatfRows=seasonRows().slice().sort((a,b)=>Number(a.cycle)-Number(b.cycle)||String(a.category).localeCompare(b.category)||String(a.rgd).localeCompare(b.rgd,'pt-BR',{numeric:true}))
+    .map(r=>({IATF:Number(r.cycle),DATA_IATF:cycleDate(r.cycle),RGD:r.rgd,'1_ACASALAMENTO':r.firstSire,'2_ACASALAMENTO_CURRAL':r.secondSire||'',QTD:r.qty,RESULTADO:r.result,RETORNO:r.return||'',CATEGORIA:r.category}));
+  const matRows=db.animals.slice().sort((a,b)=>String(a.rgd).localeCompare(b.rgd,'pt-BR',{numeric:true}))
+    .map(a=>({RGD:a.rgd,'1_ACASALAMENTO':a.firstSire||'',CATEGORIA:a.category,SITUACAO:statusLabel(latestStatus(a.rgd))}));
+  const stkRows=db.semen.slice().sort((a,b)=>String(a.name).localeCompare(b.name,'pt-BR',{numeric:true}))
+    .map(s=>({TOURO:s.name,RGD_TOURO:s.rgdTouro||'',BOTIJAO:s.tank||'',CANECA:s.caneca||'',QTD_DOSES:Number(s.initial||0),UTILIZADO:usedEffective(s),SALDO:stockBalance(s),DATA_ENTRADA:s.addedDate||''}));
+  const resumo=[
+    {INDICADOR:'Estação',VALOR:est.name},
+    {INDICADOR:'Período',VALOR:`${fmtDate(est.startDate)} a ${fmtDate(est.endDate)}`},
+    {INDICADOR:'Matrizes cadastradas',VALOR:db.animals.length},
+    {INDICADOR:'Lançamentos de IATF',VALOR:iatfRows.length},
+    {INDICADOR:'Prenhas',VALOR:finalOutcomeCounts().P},
+    {INDICADOR:'Vazias',VALOR:finalOutcomeCounts().V},
+    {INDICADOR:'PRT',VALOR:finalOutcomeCounts().PRT},
+    {INDICADOR:'Doses em saldo',VALOR:db.semen.reduce((a,s)=>a+stockBalance(s),0)},
+    {INDICADOR:'Gerado em',VALOR:new Date().toLocaleString('pt-BR')},
+  ];
+  const add=(rows,nome)=>{if(!rows.length)return;const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};XLSX.utils.book_append_sheet(wb,ws,nome)};
+  add(resumo,'Resumo');add(iatfRows,'IATF');add(matRows,'Matrizes');add(stkRows,'Estoque');
+  downloadWorkbook(wb,'estacao_'+est.name.replace(/\W+/g,'_')+'.xlsx')
+} window.exportSeasonAll=exportSeasonAll;
 
 /* EXCEL */
 function needXLSX(){if(typeof XLSX==='undefined'){alert('A biblioteca do Excel não carregou. Verifique sua internet e abra novamente o arquivo no Chrome/Edge.');return false}return true}
@@ -597,37 +816,33 @@ function downloadWorkbook(wb,name){XLSX.writeFile(wb,name)}
 function downloadAnimalTemplate(){
   if(!needXLSX())return;
   const wb=XLSX.utils.book_new();
-  const data=[['RGD','1_ACASALAMENTO','CATEGORIA'],['','','']];
-  const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[{wch:18},{wch:38},{wch:18}];ws['!autofilter']={ref:'A1:C2'};
+  const data=[['RGD'],[''],[''],[''],['']];
+  const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=[{wch:24}];
   XLSX.utils.book_append_sheet(wb,ws,'IMPORTAR');
-  const bulls=sireNames(),n=Math.max(bulls.length,3),lists=[['TOUROS_NO_ESTOQUE','CATEGORIAS']];
-  for(let i=0;i<n;i++)lists.push([bulls[i]||'', ['Vacas','Primíparas','Precocinha'][i]||'']);
-  const ls=XLSX.utils.aoa_to_sheet(lists);ls['!cols']=[{wch:40},{wch:18}];XLSX.utils.book_append_sheet(wb,ls,'LISTAS');
-  const inst=XLSX.utils.aoa_to_sheet([['INSTRUÇÕES'],['Preencha apenas a aba IMPORTAR.'],['1_ACASALAMENTO deve ser exatamente um nome existente na aba LISTAS.'],['Se uma linha tiver touro inexistente, o arquivo inteiro será rejeitado.'],['Categorias válidas: Vacas, Primíparas, Precocinha.']]);inst['!cols']=[{wch:90}];XLSX.utils.book_append_sheet(wb,inst,'LEIA-ME');
+  const inst=XLSX.utils.aoa_to_sheet([['INSTRUÇÕES'],['Cole na coluna RGD apenas os números/nomes das matrizes, um por linha.'],['Categoria e 1º acasalamento são preenchidos depois, direto no site.'],['RGDs que já existirem no cadastro são ignorados automaticamente.']]);inst['!cols']=[{wch:90}];XLSX.utils.book_append_sheet(wb,inst,'LEIA-ME');
   downloadWorkbook(wb,'modelo_matrizes.xlsx')
 } window.downloadAnimalTemplate=downloadAnimalTemplate;
 function downloadStockTemplate(){
-  if(!needXLSX())return;const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([['CADASTRO_SEMEN','NOME_BOTIJAO','BOTIJAO','CANECA','QTD_DOSES','DATA_ENTRADA'],['','','','','','']]);ws['!cols']=[{wch:34},{wch:30},{wch:14},{wch:12},{wch:14},{wch:16}];ws['!autofilter']={ref:'A1:F2'};XLSX.utils.book_append_sheet(wb,ws,'IMPORTAR');downloadWorkbook(wb,'modelo_estoque_semen.xlsx')
+  if(!needXLSX())return;const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([['TOURO','RGD_TOURO','BOTIJAO','CANECA','QTD_DOSES','DATA_ENTRADA'],['','','','','','']]);ws['!cols']=[{wch:34},{wch:22},{wch:14},{wch:12},{wch:14},{wch:16}];ws['!autofilter']={ref:'A1:F2'};XLSX.utils.book_append_sheet(wb,ws,'IMPORTAR');downloadWorkbook(wb,'modelo_estoque_semen.xlsx')
 } window.downloadStockTemplate=downloadStockTemplate;
 function readExcel(file,cb){if(!file||!needXLSX())return;const fr=new FileReader();fr.onload=()=>{try{const wb=XLSX.read(fr.result,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];cb(XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}))}catch(e){alert('Não consegui ler o Excel: '+e.message)}};fr.readAsArrayBuffer(file)}
 function pick(row,names){const keys=Object.keys(row);for(const n of names){const k=keys.find(k=>norm(k)===norm(n));if(k)return row[k]}return''}
 function importAnimalsExcel(file){
   readExcel(file,rows=>{
     if(!rows.length)return alert('O Excel não possui linhas para importar.');
-    const errs=[],prepared=[],existing=new Set(db.animals.map(a=>norm(a.rgd)));
-    rows.forEach((r,i)=>{
-      const line=i+2,rgd=String(pick(r,['RGD'])).trim(),sire=String(pick(r,['1_ACASALAMENTO','1 ACASALAMENTO','1º ACASALAMENTO'])).trim(),cat=String(pick(r,['CATEGORIA'])).trim();
-      if(!rgd&&!sire&&!cat)return;
-      if(!rgd)errs.push(`Linha ${line}: RGD vazio.`);
-      if(!sire)errs.push(`Linha ${line}: 1_ACASALAMENTO vazio.`);
-      else if(!sireExists(sire))errs.push(`Linha ${line}: touro "${sire}" não existe no Estoque.`);
-      if(!['Vacas','Primíparas','Precocinha'].includes(cat))errs.push(`Linha ${line}: categoria "${cat}" inválida.`);
-      if(existing.has(norm(rgd))||prepared.some(x=>norm(x.rgd)===norm(rgd)))errs.push(`Linha ${line}: RGD "${rgd}" duplicado/já cadastrado.`);
-      prepared.push({rgd,sire,cat})
+    const existing=new Set(db.animals.map(a=>norm(a.rgd)));
+    const novos=[],ignorados=[];
+    rows.forEach(r=>{
+      const rgd=String(pick(r,['RGD','MATRIZ','MATRIZES'])||Object.values(r)[0]||'').trim();
+      if(!rgd)return;
+      if(existing.has(norm(rgd))||novos.some(x=>norm(x)===norm(rgd))){ignorados.push(rgd);return}
+      novos.push(rgd)
     });
-    if(errs.length){showImportErrors('Importação cancelada',`Nenhuma matriz foi cadastrada. Corrija ${errs.length} problema(s) e envie o Excel novamente.`,errs);return}
-    prepared.forEach(x=>db.animals.push({id:uid('a'),rgd:x.rgd,firstSire:x.sire,category:x.cat,active:true}));
-    save();alert(`${prepared.length} matrizes importadas com sucesso.`);if(page==='animals')animals()
+    if(!novos.length)return alert('Nenhum RGD novo encontrado no arquivo.'+(ignorados.length?` ${ignorados.length} já estavam cadastrados.`:''));
+    novos.forEach(rgd=>db.animals.push({id:uid('a'),rgd,firstSire:'',category:'Vacas',active:true}));
+    save();
+    alert(`${novos.length} matriz(es) importada(s).`+(ignorados.length?`\n${ignorados.length} já existiam e foram ignoradas.`:'')+'\n\nAgora preencha categoria e 1º acasalamento direto na tabela.');
+    if(page==='animals')animals()
   })
 }
 function importStockExcel(file){
@@ -635,21 +850,21 @@ function importStockExcel(file){
     if(!rows.length)return alert('O Excel não possui linhas para importar.');
     const errs=[],prepared=[];
     rows.forEach((r,i)=>{
-      const line=i+2,name=String(pick(r,['CADASTRO_SEMEN','CADASTRO SEMEN','SÊMEN','SEMEN'])).trim(),tankName=String(pick(r,['NOME_BOTIJAO','NOME BOTIJAO','NOME BOTIJÃO'])).trim(),tank=String(pick(r,['BOTIJAO','BOTIJÃO'])).trim(),caneca=String(pick(r,['CANECA'])).trim(),qRaw=pick(r,['QTD_DOSES','QTD DOSES','QUANTIDADE']),q=Number(String(qRaw).replace(',','.')),date=String(pick(r,['DATA_ENTRADA','DATA ENTRADA'])).trim();
-      if(!name&&!tankName&&!tank&&!caneca&&!qRaw&&!date)return;
-      if(!name)errs.push(`Linha ${line}: CADASTRO_SEMEN vazio.`);
+      const line=i+2,name=String(pick(r,['TOURO','CADASTRO_SEMEN','CADASTRO SEMEN','SÊMEN','SEMEN','NOME_BOTIJAO'])).trim(),rgdTouro=String(pick(r,['RGD_TOURO','RGD TOURO','RGD'])).trim(),tank=String(pick(r,['BOTIJAO','BOTIJÃO'])).trim(),caneca=String(pick(r,['CANECA'])).trim(),qRaw=pick(r,['QTD_DOSES','QTD DOSES','QUANTIDADE']),q=Number(String(qRaw).replace(',','.')),date=String(pick(r,['DATA_ENTRADA','DATA ENTRADA'])).trim();
+      if(!name&&!rgdTouro&&!tank&&!caneca&&!qRaw&&!date)return;
+      if(!name)errs.push(`Linha ${line}: TOURO vazio.`);
       if(!Number.isFinite(q)||q<0)errs.push(`Linha ${line}: QTD_DOSES inválida.`);
-      prepared.push({name,tankName,tank,caneca,q,date})
+      prepared.push({name,rgdTouro,tank,caneca,q,date})
     });
     if(errs.length){showImportErrors('Importação cancelada','Nenhuma entrada de sêmen foi cadastrada.',errs);return}
-    prepared.forEach(x=>{const ex=db.semen.find(s=>norm(s.name)===norm(x.name));if(ex){ex.initial=Number(ex.initial||0)+x.q;if(x.tankName)ex.tankName=x.tankName;if(x.tank)ex.tank=x.tank;if(x.caneca)ex.caneca=x.caneca;if(x.date)ex.addedDate=x.date}else db.semen.push({id:uid('s'),name:x.name,tankName:x.tankName,tank:x.tank,caneca:x.caneca,initial:x.q,addedDate:x.date,active:true})});
+    prepared.forEach(x=>{const ex=db.semen.find(s=>norm(s.name)===norm(x.name));if(ex){ex.initial=Number(ex.initial||0)+x.q;if(x.rgdTouro)ex.rgdTouro=x.rgdTouro;if(x.tank)ex.tank=x.tank;if(x.caneca)ex.caneca=x.caneca;if(x.date)ex.addedDate=x.date}else db.semen.push({id:uid('s'),name:x.name,rgdTouro:x.rgdTouro,tank:x.tank,caneca:x.caneca,initial:x.q,addedDate:x.date,usedOverride:null,active:true})});
     save();alert(`${prepared.length} linha(s) de estoque importadas.`);if(page==='stock')stock()
   })
 }
 function showImportErrors(titleText,sub,errs){openModal(`<h2>${esc(titleText)}</h2><div class="notice">${esc(sub)}</div><div class="error-list">${errs.map(e=>`<div>• ${esc(e)}</div>`).join('')}</div><div class="actions"><button class="primary" onclick="closeModal()">Entendi</button></div>`)}
 function exportAnimals(){if(!needXLSX())return;const rows=animalRowsFiltered().map(a=>({RGD:a.rgd,'1_ACASALAMENTO':a.firstSire,CATEGORIA:a.category,SITUACAO:statusLabel(a.status)}));jsonToXlsx(rows,'matrizes_'+activeSeason().name.replace(/\W+/g,'_')+'.xlsx','Matrizes')} window.exportAnimals=exportAnimals;
-function exportIatfRows(rows){if(!needXLSX())return;const out=rows.map(r=>({IATF:Number(r.cycle),DATA_IATF:cycleDate(r.cycle),RGD:r.rgd,'1_ACASALAMENTO':r.firstSire,QTD:r.qty,RESULTADO:r.result,RETORNO:r.return,CATEGORIA:r.category}));jsonToXlsx(out,'iatf_'+activeSeason().name.replace(/\W+/g,'_')+'.xlsx','IATF')}
-function exportStock(){if(!needXLSX())return;const out=stockRowsFiltered().map(s=>({CADASTRO_SEMEN:s.name,NOME_BOTIJAO:s.tankName,BOTIJAO:s.tank,CANECA:s.caneca,QTD_DOSES:s.initial,UTILIZADO:s.used,SALDO:s.saldo,DATA_ENTRADA:s.addedDate}));jsonToXlsx(out,'estoque_semen.xlsx','Estoque')} window.exportStock=exportStock;
+function exportIatfRows(rows){if(!needXLSX())return;const out=rows.map(r=>({IATF:Number(r.cycle),DATA_IATF:cycleDate(r.cycle),RGD:r.rgd,'1_ACASALAMENTO':r.firstSire,'2_ACASALAMENTO_CURRAL':r.secondSire||'',QTD:r.qty,RESULTADO:r.result,RETORNO:r.return,CATEGORIA:r.category}));jsonToXlsx(out,'iatf_'+activeSeason().name.replace(/\W+/g,'_')+'.xlsx','IATF')}
+function exportStock(){if(!needXLSX())return;const out=stockRowsFiltered().map(s=>({TOURO:s.name,RGD_TOURO:s.rgdTouro||'',BOTIJAO:s.tank,CANECA:s.caneca,QTD_DOSES:s.initial,UTILIZADO:s.used,SALDO:s.saldo,DATA_ENTRADA:s.addedDate}));jsonToXlsx(out,'estoque_semen.xlsx','Estoque')} window.exportStock=exportStock;
 function jsonToXlsx(rows,name,sheet){const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheet);downloadWorkbook(wb,name)}
 
 /* PRINT */
@@ -658,12 +873,31 @@ function printHTML(titleText,body){
   w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}.card,.chart{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi .value{font-size:20px;font-weight:bold}.sub,.muted{font-size:10px;color:#666}.bar-track{height:8px;background:#eee}.bar-fill{height:100%;background:#555}.rank-row,.inline-stat,.bar-row{display:flex;justify-content:space-between;gap:10px;padding:5px;border-bottom:1px solid #eee}.actions,.quick-add,.toolbar,.filter-row,button,input,select{display:none!important}@media print{body{padding:0}}</style></head><body><h1>${esc(titleText)}</h1>${body}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},200)
 }
 function printIatfRows(rows){
-  const trs=rows.map(r=>`<tr><td>${r.cycle}ª</td><td>${fmtDate(cycleDate(r.cycle))}</td><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td>${r.qty||''}</td><td>${esc(r.result)}</td><td>${fmtDate(r.return)}</td><td>${esc(r.category)}</td></tr>`).join('');
-  printHTML('IATF - '+activeSeason().name,`<table><thead><tr><th>IATF</th><th>Data</th><th>RGD</th><th>1º Acasalamento</th><th>Qtd</th><th>Resultado</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
+  const trs=rows.map(r=>`<tr><td>${r.cycle}ª</td><td>${fmtDate(cycleDate(r.cycle))}</td><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td>${r.qty||''}</td><td>${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+  printHTML('IATF - '+activeSeason().name,`<table><thead><tr><th>IATF</th><th>Data</th><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th>Qtd</th><th>Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
 }
+function openStockPrint(){
+  openModal(`<h2>Imprimir estoque</h2><div class="form-grid">
+  <div class="field"><label>Touros com saldo zero</label><select id="pkZero"><option value="nao">Não incluir (só com saldo)</option><option value="sim">Incluir todos</option></select></div>
+  <div class="field"><label>Colunas em branco para anotar</label><select id="pkBlank"><option value="sim">Sim (conferência no botijão)</option><option value="nao">Não</option></select></div>
+  <div class="field"><label>Filtros da tela</label><select id="pkCurrent"><option value="yes">Respeitar filtros atuais</option><option value="no">Ignorar filtros</option></select></div></div>
+  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="printStock()">Imprimir</button></div>`)
+} window.openStockPrint=openStockPrint;
 function printStock(){
-  const rows=stockRowsFiltered(),trs=rows.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.tankName)}</td><td>${esc(s.tank)}</td><td>${esc(s.caneca)}</td><td>${s.initial}</td><td>${s.used}</td><td>${s.saldo}</td><td>${fmtDate(s.addedDate)}</td></tr>`).join('');
-  printHTML('Estoque de sêmen',`<table><thead><tr><th>Cadastro sêmen</th><th>Nome botijão</th><th>Botijão</th><th>Caneca</th><th>Qtd</th><th>Usado</th><th>Saldo</th><th>Data</th></tr></thead><tbody>${trs}</tbody></table>`)
+  const incZero=($('#pkZero')||{value:'nao'}).value==='sim';
+  const blank=($('#pkBlank')||{value:'sim'}).value==='sim';
+  const useFilters=($('#pkCurrent')||{value:'yes'}).value==='yes';
+  const u=usedSemen();
+  let rows=useFilters?stockRowsFiltered():db.semen.map(s=>({...s,saldo:stockBalance(s),used:usedEffective(s)}));
+  if(!incZero)rows=rows.filter(s=>Number(s.saldo)>0);
+  rows=rows.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR',{numeric:true}));
+  if(!rows.length){closeModal();return alert('Nenhum registro para imprimir com essa seleção.')}
+  const extraH=blank?'<th style="width:70px">Conferido</th><th style="width:110px">Obs.</th>':'';
+  const extraD=blank?'<td>&nbsp;</td><td>&nbsp;</td>':'';
+  const trs=rows.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.rgdTouro||'')}</td><td>${esc(s.tank||'')}</td><td>${esc(s.caneca||'')}</td><td>${s.initial}</td><td>${s.used}</td><td>${s.saldo}</td>${extraD}</tr>`).join('');
+  const tot=rows.reduce((a,s)=>({i:a.i+Number(s.initial||0),u:a.u+Number(s.used||0),sa:a.sa+Number(s.saldo||0)}),{i:0,u:0,sa:0});
+  closeModal();
+  printHTML('Estoque de sêmen'+(incZero?'':' (somente com saldo)'),`<table><thead><tr><th>Touro</th><th>RGD do touro</th><th>Botijão</th><th>Caneca</th><th>Qtd doses</th><th>Usado</th><th>Saldo</th>${extraH}</tr></thead><tbody>${trs}</tbody><tfoot><tr><td colspan="4" style="text-align:right"><strong>TOTAL</strong></td><td><strong>${tot.i}</strong></td><td><strong>${tot.u}</strong></td><td><strong>${tot.sa}</strong></td>${extraD}</tr></tfoot></table>`)
 } window.printStock=printStock;
 
 /* Expose imports */
