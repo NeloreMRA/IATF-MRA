@@ -967,9 +967,15 @@ function openIatfOutput(mode){
 } window.openIatfOutput=openIatfOutput;
 function outputIatfRows(){
   const cat=$('#outCat').value,cy=$('#outCycle').value,res=$('#outResult').value,current=$('#outCurrent').value==='yes';
+  if(current){
+    let rows=iatfRowsFiltered();
+    if(cat)rows=rows.filter(r=>r.category===cat);
+    if(cy)rows=rows.filter(r=>Number(r.cycle)===Number(cy));
+    if(res)rows=rows.filter(r=>normResult(r.result)===res);
+    return rows;
+  }
   let rows=seasonRows().filter(r=>(!cat||r.category===cat)&&(!cy||Number(r.cycle)===Number(cy))&&(!res||normResult(r.result)===res));
-  if(current)rows=rows.filter(r=>excelPass('iatf',r));
-  return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||a.category.localeCompare(b.category)||a.rgd.localeCompare(b.rgd))
+  return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||a.category.localeCompare(b.category)||a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}))
 }
 function runIatfOutput(mode){const rows=outputIatfRows();if(!rows.length)return alert('Nenhum registro para esta seleção.');if(mode==='export')exportIatfRows(rows);else printIatfRows(rows);closeModal()} window.runIatfOutput=runIatfOutput;
 
