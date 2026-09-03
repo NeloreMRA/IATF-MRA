@@ -828,7 +828,7 @@ function renderIatfRows(){
   const __view=captureViewPosition();
   const rows=iatfRowsFiltered();
   root.innerHTML=`<div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:32px;min-width:32px;max-width:32px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:70px;min-width:70px;padding-left:18px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:45px;min-width:45px;max-width:45px;text-align:center;padding-left:1px;padding-right:1px">Nº Caneca</th><th style="width:70px;min-width:70px;padding-left:12px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onchange="updateIatfSire(this)"></td>
@@ -1194,11 +1194,11 @@ function printIatfRows(rows){
   const ciclo=rows[0]?.cycle||iatfCycle;
   const data=fmtDate(cycleDate(ciclo));
 
-  const trs=rows.map(r=>`<tr><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px">${esc(r.caneca||'')}</td><td>${r.qty||''}</td><td>${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+  const trs=rows.map(r=>`<tr><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px"></td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
 
   printHTML(
     `${ciclo}ª IATF - ${data} - ${activeSeason().name}`,
-    `<table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th>Qtd</th><th>Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`
+    `<table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th style="width:60px">Qtd</th><th style="width:60px">Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`
   )
 }
 function openStockPrint(){
