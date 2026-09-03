@@ -828,7 +828,7 @@ function renderIatfRows(){
   const __view=captureViewPosition();
   const rows=iatfRowsFiltered();
   root.innerHTML=`<div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:42px;text-align:center">Nº Caneca</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:32px;min-width:32px;max-width:32px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:70px;min-width:70px;padding-left:18px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onchange="updateIatfSire(this)"></td>
