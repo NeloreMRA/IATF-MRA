@@ -69,7 +69,7 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .excel-search{width:100%;border:1px solid #d7ddd8;border-radius:7px;padding:7px 9px;margin-bottom:8px;font:inherit}
 .excel-check-all{display:flex;gap:8px;align-items:center;padding:6px 2px;border-bottom:1px solid #e8ece9}.excel-values{max-height:190px;overflow:auto;margin:5px 0}.excel-value{display:flex;gap:8px;align-items:center;padding:5px 2px}.excel-value.hidden{display:none}.excel-value span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .excel-actions{display:flex;justify-content:flex-end;gap:7px;border-top:1px solid #e8ece9;padding-top:9px}.excel-actions button{border:1px solid #d6ddd7;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}.excel-actions .excel-ok{border-color:#7d9a85;background:#f7faf8}.excel-actions .excel-clear{color:#b14d3d}
-.iatf-qty{width:48px!important;min-width:48px!important;max-width:48px;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{min-width:150px!important}.iatf-retorno{min-width:110px!important}
+.iatf-qty{width:48px!important;min-width:48px!important;max-width:48px;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{min-width:150px!important}.iatf-caneca{width:42px!important;min-width:42px!important;max-width:42px!important;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-retorno{min-width:110px!important}
 /* Matrizes mais compactas, como um zoom menor, sem alterar o resto do sistema */
 .animals-page,.iatf-page,.stock-page{font-size:12px}
 .animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{max-height:76vh}
@@ -828,12 +828,13 @@ function renderIatfRows(){
   const __view=captureViewPosition();
   const rows=iatfRowsFiltered();
   root.innerHTML=`<div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th>${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:42px;text-align:center">Nº Caneca</th><th>${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onchange="updateIatfSire(this)"></td>
-  <td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
-  <td><input class="cell-input nav-qtd iatf-qty" inputmode="decimal" data-id="${r.id}" value="${r.qty||''}" onkeydown="iatfEnter(event,'nav-qtd')" onchange="updateIatfCell('${r.id}','qty',this.value)"></td>
+<td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
+<td><input class="cell-input iatf-caneca" type="text" value="" readonly></td>
+<td><input class="cell-input nav-qtd iatf-qty" inputmode="decimal" data-id="${r.id}" value="${r.qty||''}" onkeydown="iatfEnter(event,'nav-qtd')" onchange="updateIatfCell('${r.id}','qty',this.value)"></td>
   <td><input class="cell-input nav-result iatf-result" list="resultList" maxlength="3" data-id="${r.id}" value="${esc(r.result||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-result')" onchange="updateIatfResult('${r.id}',this.value,this)"></td>
   <td><input class="cell-input iatf-retorno" type="text" value="${esc(r.return||'')}" placeholder="—" onchange="updateIatfCell('${r.id}','return',this.value)"></td>
   <td><span class="badge ${catClass(r.category)}">${esc(r.category)}</span></td>
@@ -1190,8 +1191,15 @@ function printHTML(titleText,body){
   w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}.card,.chart{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi .value{font-size:20px;font-weight:bold}.sub,.muted{font-size:10px;color:#666}.bar-track{height:8px;background:#eee}.bar-fill{height:100%;background:#555}.rank-row,.inline-stat,.bar-row{display:flex;justify-content:space-between;gap:10px;padding:5px;border-bottom:1px solid #eee}.actions,.quick-add,.toolbar,.filter-row,button,input,select{display:none!important}@media print{body{padding:0}}</style></head><body><h1>${esc(titleText)}</h1>${body}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},200)
 }
 function printIatfRows(rows){
-  const trs=rows.map(r=>`<tr><td>${r.cycle}ª</td><td>${fmtDate(cycleDate(r.cycle))}</td><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td>${r.qty||''}</td><td>${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
-  printHTML('IATF - '+activeSeason().name,`<table><thead><tr><th>IATF</th><th>Data</th><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th>Qtd</th><th>Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
+  const ciclo=rows[0]?.cycle||iatfCycle;
+  const data=fmtDate(cycleDate(ciclo));
+
+  const trs=rows.map(r=>`<tr><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px">${esc(r.caneca||'')}</td><td>${r.qty||''}</td><td>${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+
+  printHTML(
+    `${ciclo}ª IATF - ${data} - ${activeSeason().name}`,
+    `<table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th>Qtd</th><th>Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`
+  )
 }
 function openStockPrint(){
   openModal(`<h2>Imprimir estoque</h2><div class="form-grid">
