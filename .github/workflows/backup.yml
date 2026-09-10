@@ -1,0 +1,35 @@
+name: Backup diário Firestore
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC ~ 02:00-03:00 no horário de Dourados/MS (não tem horário de verão hoje em dia)
+  workflow_dispatch: {}    # permite rodar manualmente clicando em "Run workflow" na aba Actions
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar firebase-admin
+        run: npm install firebase-admin
+
+      - name: Rodar backup
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/backup.js
+
+      - name: Commitar backup no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/
+          git diff --staged --quiet || git commit -m "Backup automático $(date +'%Y-%m-%d')"
+          git push
