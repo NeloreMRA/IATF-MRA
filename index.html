@@ -256,6 +256,22 @@ function migrate(x){
     r.return=r.return||'';
     r.qty=Number(r.qty||0); r.result=normResult(r.result);
   });
+  // Reconciliação: se a matriz chegou sem 1º acasalamento mas já existe um lançamento de IATF dela
+  // com o acasalamento preenchido (dados restaurados/importados fora do fluxo normal de edição),
+  // puxa esse valor pra Matriz. O inverso também vale: matriz com acasalamento/categoria preenchidos
+  // "empresta" o valor pros lançamentos de IATF dela que ainda estiverem vazios/desatualizados.
+  (x.animals||[]).forEach(a=>{
+    const rows=(x.iatf||[]).filter(r=>r.seasonId===a.seasonId&&norm(r.rgd)===norm(a.rgd));
+    if(!rows.length)return;
+    if(!a.firstSire){
+      const withSire=rows.find(r=>r.firstSire);
+      if(withSire)a.firstSire=withSire.firstSire;
+    }
+    rows.forEach(r=>{
+      if(!r.firstSire && a.firstSire)r.firstSire=a.firstSire;
+      if(a.category)r.category=a.category;
+    });
+  });
   // Categorias vinculadas a cada IATF. Na primeira migração, infere das linhas já existentes.
   if(!x.meta.iatfCycleCategories_v9){
     (x.iatf||[]).forEach(r=>{
