@@ -510,7 +510,7 @@ function setActions(h){$('#pageActions').innerHTML=h||''}
 /* FILTRO ESTILO EXCEL */
 function rawRowsForExcel(kind){
   if(kind==='animals')return seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd)}));
-  if(kind==='iatf'){const cats=getIatfCycleCategories(iatfCycle);return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)&&(!cats.length||cats.includes(r.category)));}
+  if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   return []
 }
@@ -630,8 +630,24 @@ function printDashboard(){printHTML('Dashboard - '+activeSeason().name,$('#conte
 window.printDashboard=printDashboard;
 
 /* MATRIZES */
+function matrizCurrentCycle(rgd){
+  const rows=seasonRows().filter(r=>r.rgd===rgd);
+  return rows.length?Math.max(...rows.map(r=>Number(r.cycle)||0)):'';
+}
+function setAnimalIatfCycle(id,val,el){
+  const a=db.animals.find(x=>x.id===id);if(!a)return;
+  val=String(val||'').trim();
+  if(!val){el.value=matrizCurrentCycle(a.rgd);return} // não apaga nada, só evita ficar vazio à toa
+  const cy=Number(val);
+  if(!Number.isFinite(cy)||cy<1||!Number.isInteger(cy)){alert('Informe um número de IATF válido (1, 2, 3...).');el.value=matrizCurrentCycle(a.rgd);return}
+  if(!seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===cy)){
+    db.iatf.push({id:uid('i'),seasonId:a.seasonId,category:a.category,cycle:cy,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+    save();
+  }
+  el.value=cy;
+} window.setAnimalIatfCycle=setAnimalIatfCycle;
 function animalRowsFiltered(){
-  let rows=seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd)})).filter(a=>excelPass('animals',a));
+  let rows=seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)})).filter(a=>excelPass('animals',a));
   const k=animalSort.key,d=animalSort.dir;
   rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
@@ -655,7 +671,7 @@ function animals(){
     </div>
     <div class="out-actions"><button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
   </div>
-  <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
+  <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz <strong>não</strong> a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser. Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="animalTable"></div>
   </div>`;
   renderAnimalTable()
@@ -670,13 +686,14 @@ function renderAnimalTable(){
   const rows=animalRowsFiltered();
   const total=seasonAnimals().length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matrizes exibidas de <strong style="color:#233129;margin:0 4px">${total}</strong> cadastradas</div><div class="table-wrap"><table><thead>
-  <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th></th></tr>
+  <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th>IATF atual</th><th></th></tr>
   </thead><tbody>${rows.map(a=>`<tr>
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input nav-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-rgd')" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
   <td><input class="cell-input nav-sire" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onkeydown="iatfEnter(event,'nav-sire')" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
   <td><select class="cell-input category-select nav-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-cat')" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
+  <td><input class="cell-input" type="number" min="1" step="1" style="width:70px;text-align:center" value="${a.curCycle}" placeholder="—" title="Número da IATF em que essa matriz está. Vazio = ainda não está em nenhuma." onchange="setAnimalIatfCycle('${a.id}',this.value,this)"></td>
   <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
 }
@@ -771,8 +788,10 @@ function setIatfCycleCategories(cycle,cats){
   db.iatfCycleCategories[sid][String(Number(cycle))]=[...new Set(cats)];
 }
 function iatfRowsFiltered(){
-  const cats=getIatfCycleCategories(iatfCycle);
-  let rows=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)&&(!cats.length||cats.includes(r.category))).filter(r=>excelPass('iatf',r));
+  // As caixinhas de categoria só controlam a montagem automática em massa (ver toggleIatfCategory).
+  // A tabela sempre mostra TUDO que já está nesta IATF, categoria marcada ou não — inclusive uma
+  // matriz que você colocou manualmente pela coluna "IATF atual" em Matrizes.
+  let rows=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).filter(r=>excelPass('iatf',r));
   const k=iatfSort.key,d=iatfSort.dir;rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
 function sortIatf(k){if(iatfSort.key===k)iatfSort.dir*=-1;else iatfSort={key:k,dir:1};renderIatfRows()} window.sortIatf=sortIatf;
@@ -831,12 +850,15 @@ function iatfPage(){
       <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
       <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
     </div>
-    ${cats.length?`<button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button>`:''}<button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
   </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marque uma ou mais categorias. Ex.: 1ª IATF = Vacas + Primíparas; 2ª IATF = Vacas + Precocinhas. Para categorias já trabalhadas, entram as matrizes <strong>Vazias ou ainda Sem resultado</strong>. Se a categoria nunca participou de IATF anterior, entram <strong>todas as matrizes</strong> dela. Prenhas e PRT ficam de fora.</div>
+  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marque uma ou mais categorias pra adicionar TODAS as matrizes elegíveis delas de uma vez. Ex.: 1ª IATF = Vacas + Primíparas. Para categorias já trabalhadas, entram as matrizes <strong>Vazias ou ainda Sem resultado</strong>. Se a categoria nunca participou de IATF anterior, entram <strong>todas as matrizes</strong> dela. Prenhas e PRT ficam de fora. Quer só uma matriz específica, sem marcar a categoria toda? Usa a coluna <strong>"IATF atual"</strong> lá na aba Matrizes.</div>
   <div id="iatfTable"></div>
   </div>`;
-  if(cats.length)prepareIatfCategories();renderIatfRows()
+  // A partir de agora, adicionar uma matriz nova NÃO a insere sozinha em nenhuma IATF.
+  // A montagem automática só acontece no exato momento em que você marca a caixinha de
+  // categoria (dentro de toggleIatfCategory) — não fica "varrendo" matrizes novas depois.
+  renderIatfRows()
 }
 function animalDatalist(){return `<datalist id="animalsList">${seasonAnimals().map(a=>`<option value="${esc(a.rgd)}">${esc(a.category)}</option>`).join('')}</datalist>`}
 function prtAnimals(){
@@ -1218,30 +1240,29 @@ async function downloadAnimalTemplate(){
   ws.getRow(1).font={bold:true};
   const bulls=sireNames();
   const cats=['Vacas','Primíparas','Precocinha'];
-  const lists=wb.addWorksheet('Listas'); lists.state='veryHidden';
+  const lists=wb.addWorksheet('Listas'); lists.state='hidden';
   bulls.forEach((b,i)=>{lists.getCell(i+1,1).value=b});
   cats.forEach((c,i)=>{lists.getCell(i+1,2).value=c});
-  // 1_ACASALAMENTO: sem lista suspensa (com muitos touros, ficar caçando na lista com o mouse é ruim).
-  // Em vez disso, é só digitar — e a célula fica destacada em vermelho se o nome não bater com
-  // nenhum touro do Estoque, então dá pra ver o erro na hora sem precisar abrir dropdown nenhum.
-  ws.addConditionalFormatting({
-    ref:`B2:B301`,
-    rules:[{type:'expression',formulae:[`AND($B2<>"",ISNA(MATCH($B2,Listas!$A:$A,0)))`],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFFFC7CE'}},font:{color:{argb:'FF9C0006'}}}}]
-  });
-  for(let r=2;r<=301;r++){
+  // 1_ACASALAMENTO: lista suspensa de verdade (setinha do Excel), igual a Categoria.
+  // Com um clique você escolhe da lista; com o teclado também dá pra digitar o nome direto.
+  for(let r=2;r<=501;r++){
+    if(bulls.length)ws.getCell(`B${r}`).dataValidation={
+      type:'list',allowBlank:true,formulae:[`Listas!$A$1:$A$${bulls.length}`],
+      showErrorMessage:true,errorStyle:'stop',errorTitle:'Touro não encontrado',
+      error:'Esse touro não está cadastrado no Estoque. Escolha um da lista.'
+    };
     ws.getCell(`C${r}`).dataValidation={type:'list',allowBlank:true,formulae:[`Listas!$B$1:$B$${cats.length}`]};
   }
   const inst=wb.addWorksheet('LEIA-ME');
   inst.getColumn(1).width=95;
   [['INSTRUÇÕES'],
    ['RGD é obrigatório. 1_ACASALAMENTO e CATEGORIA são opcionais — pode deixar em branco.'],
-   ['1_ACASALAMENTO: digite o nome do touro. Se não bater com nenhum nome do Estoque, a célula fica vermelha — não precisa de lista suspensa, é só digitar.'],
-   ['CATEGORIA: use a lista suspensa da coluna C (Vacas, Primíparas ou Precocinha).'],
+   ['1_ACASALAMENTO: clique na célula e use a setinha do lado direito pra escolher o touro (lista vem do seu Estoque). Também dá pra digitar o nome direto.'],
+   ['CATEGORIA: mesma coisa — Vacas, Primíparas ou Precocinha pela setinha.'],
    ['Se o RGD já existir nesta estação, os dados desta planilha atualizam o cadastro; se não existir, cria uma matriz nova.'],
    ['Os lançamentos de IATF já existentes para o mesmo RGD, nesta estação, também são atualizados automaticamente.'],
    [''],
-   ['TOUROS CADASTRADOS NO ESTOQUE (nomes válidos para 1_ACASALAMENTO):'],
-   ...(bulls.length?bulls.map(b=>[b]):[['(nenhum touro cadastrado no Estoque ainda)']])
+   [`Touros disponíveis no Estoque no momento em que este modelo foi gerado: ${bulls.length}.`]
   ].forEach(row=>inst.addRow(row));
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([buf],{type:'application/octet-stream'});
