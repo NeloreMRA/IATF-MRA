@@ -876,17 +876,26 @@ function iatfPage(){
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
-  <div class="toolbar"><div class="filters">
-    <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
-    <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
+  <div class="toolbar" style="margin-bottom:9px">
+    <div class="filters">
+      <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
+      <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
+    </div>
+    <div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div>
+  </div>
+  <div class="toolbar" style="margin-bottom:9px">
     <div class="iatf-category-box"><span>Categorias:</span>
       <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
       <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
       <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
     </div>
-    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
-  </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marca aqui pra adicionar de uma vez TODAS as matrizes elegíveis daquela categoria (Vazias/Sem resultado). Isso só roda no momento em que você marca a caixinha — matriz nova cadastrada depois não entra sozinha. Pra adicionar uma de cada vez (ou colar vários RGDs), use <strong>"+ Matriz(es) nesta IATF"</strong> ou a coluna <strong>"IATF atual"</strong> em Matrizes.</div>
+  </div>
+  <div class="toolbar">
+    <div class="filters">
+      <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+    </div>
+  </div>
+  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marca aqui pra adicionar de uma vez TODAS as matrizes elegíveis daquela categoria (Vazias/Sem resultado). Isso só roda no momento em que você marca a caixinha — matriz nova cadastrada depois não entra sozinha. Pra escolher matrizes específicas numa lista com busca, use <strong>"+ Matriz(es) nesta IATF"</strong>; pra colocar uma de cada vez direto, a coluna <strong>"IATF atual"</strong> em Matrizes.</div>
   <div id="iatfTable"></div>
   </div>`;
   renderIatfRows()
@@ -987,32 +996,41 @@ function returnPrts(){
   iatfPage()
 } window.returnPrts=returnPrts;
 function quickAddAnimalToCycle(){
-  openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>${animalDatalist()}
-  <div class="notice green">Só é possível adicionar matrizes que já estão cadastradas na aba <strong>Matrizes</strong>. Cole vários RGDs de uma vez (um por linha, ou separados por vírgula) pra adicionar todos juntos.</div>
-  <div class="form-grid">
-  <div class="field full"><label>RGD(s)</label><textarea id="qRgdPick" class="input" rows="6" style="width:100%;min-height:120px;font-family:inherit;resize:vertical" placeholder="Ex:&#10;MRA 11071&#10;MRA 10033&#10;MRA 10047" autocomplete="off"></textarea><div class="help">Um RGD por linha (ou separados por vírgula). Os que não existirem em Matrizes, ou já estiverem nesta IATF, são avisados e pulados — o resto entra normal.</div></div>
-  </div>
-  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar</button></div>`);
-  setTimeout(()=>{const el=$('#qRgdPick');if(el)el.focus()},60)
+  const jaNaIatf=new Set(seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).map(r=>r.rgd));
+  const disponiveis=seasonAnimals().filter(a=>!jaNaIatf.has(a.rgd)).sort((a,b)=>a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}));
+  if(!disponiveis.length)return alert('Todas as matrizes cadastradas já estão nesta IATF.');
+  const porCat=['Vacas','Primíparas','Precocinha'].map(cat=>{
+    const l=disponiveis.filter(a=>a.category===cat);
+    if(!l.length)return '';
+    return `<div style="margin-bottom:14px"><div class="sub" style="font-weight:700;margin-bottom:6px"><span class="badge ${catClass(cat)}">${cat}</span> — ${l.length}</div>
+    ${l.map(a=>{const st=latestStatus(a.rgd);return `<label class="excel-value qa-row" data-search="${esc(norm(a.rgd)).toLowerCase()}" style="padding:6px 2px;border-bottom:1px solid #edf0ee"><input type="checkbox" class="qa-pick" value="${esc(a.rgd)}"><span><strong>${esc(a.rgd)}</strong> <span class="badge ${resClass(st)}" style="margin-left:6px">${statusLabel(st)}</span></span></label>`}).join('')}</div>`
+  }).join('');
+  openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>
+  <div class="notice green">Só aparecem aqui as matrizes que ainda <strong>não</strong> estão nesta IATF. Marque as que quiser e adicione todas de uma vez.</div>
+  <input class="input" style="width:100%;margin-bottom:10px" id="qaSearch" placeholder="Buscar por RGD..." oninput="qaFilter(this.value)">
+  <div class="quick-add" style="margin-bottom:10px"><button class="ghost" type="button" onclick="qaSelectAll(true)">Marcar visíveis</button><button class="ghost" type="button" onclick="qaSelectAll(false)">Desmarcar tudo</button></div>
+  <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px;padding:10px" id="qaList">${porCat}</div>
+  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar selecionadas</button></div>`);
+  setTimeout(()=>{const el=$('#qaSearch');if(el)el.focus()},60)
 } window.quickAddAnimalToCycle=quickAddAnimalToCycle;
+function qaFilter(q){
+  q=norm(q).toLowerCase();
+  $$('.qa-row').forEach(x=>x.classList.toggle('hidden',!!q&&!x.dataset.search.includes(q)))
+} window.qaFilter=qaFilter;
+function qaSelectAll(on){
+  $$('#qaList .qa-row:not(.hidden) .qa-pick').forEach(x=>x.checked=on)
+} window.qaSelectAll=qaSelectAll;
 function saveQuickAnimal(){
-  const raw=$('#qRgdPick').value||'';
-  const rgds=[...new Set(raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean))];
-  if(!rgds.length)return alert('Digite ou cole pelo menos um RGD.');
-  let ok=0;const naoEncontrado=[],jaEstava=[];
+  const rgds=$$('.qa-pick').filter(x=>x.checked).map(x=>x.value);
+  if(!rgds.length)return alert('Marque pelo menos uma matriz.');
+  let ok=0;
   rgds.forEach(rgd=>{
-    const a=seasonAnimals().find(x=>norm(x.rgd)===norm(rgd));
-    if(!a){naoEncontrado.push(rgd);return}
-    if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle)){jaEstava.push(rgd);return}
+    const a=seasonAnimals().find(x=>x.rgd===rgd);if(!a)return;
+    if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle))return;
     db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
     ok++
   });
-  save();closeModal();
-  let msg=`${ok} matriz(es) adicionada(s) à ${iatfCycle}ª IATF.`;
-  if(jaEstava.length)msg+=`\n${jaEstava.length} já estavam nesta IATF: ${jaEstava.join(', ')}`;
-  if(naoEncontrado.length)msg+=`\n${naoEncontrado.length} não encontrada(s) em Matrizes: ${naoEncontrado.join(', ')}`;
-  if(jaEstava.length||naoEncontrado.length)alert(msg);
-  iatfPage()
+  save();closeModal();iatfPage()
 } window.saveQuickAnimal=saveQuickAnimal;
 function iatfExcludedCurrent(){
   const sid=db.meta.activeSeasonId;
