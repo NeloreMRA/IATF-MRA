@@ -509,7 +509,7 @@ function setActions(h){$('#pageActions').innerHTML=h||''}
 
 /* FILTRO ESTILO EXCEL */
 function rawRowsForExcel(kind){
-  if(kind==='animals')return seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd)}));
+  if(kind==='animals')return seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)}));
   if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   return []
@@ -517,6 +517,8 @@ function rawRowsForExcel(kind){
 function excelValue(row,key){const v=row?.[key];return v===null||v===undefined?'':String(v)}
 function excelDisplay(kind,key,v){
   if(kind==='animals'&&key==='status')return v==='P'?'Prenha':v==='V'?'Vazia':v==='M'?'Matar':v===''?'Sem resultado':v;
+  if(kind==='animals'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
+  if(kind==='animals'&&key==='curCycle')return v===''?'(Sem IATF)':v+'ª IATF';
   if(kind==='iatf'&&key==='result')return v===''?'(Vazio)':v;
   if(v==='')return '(Vazios)';return v
 }
@@ -534,7 +536,7 @@ function openExcelFilter(ev,kind,key,label){
   excelFilterContext={kind,key,label,values,selected:new Set(current)};
   const p=document.createElement('div');p.id='excelFilterPopup';p.className='excel-popup';
   p.innerHTML=`<div class="excel-sort-row"><button onclick="excelSort(1)">A→Z ▲</button><button onclick="excelSort(-1)">Z→A ▼</button></div>
-  <input class="excel-search" placeholder="Buscar..." oninput="excelSearch(this.value)">
+  <input class="excel-search" placeholder="Buscar... (Enter aplica)" oninput="excelSearch(this.value)" onkeydown="excelSearchEnter(event)">
   <label class="excel-check-all"><input id="excelAll" type="checkbox" ${current.length===values.length?'checked':''} onchange="excelSelectAll(this.checked)"><span>Selecionar tudo</span></label>
   <div class="excel-values">${values.map((v,i)=>`<label class="excel-value" data-search="${esc(excelDisplay(kind,key,v)).toLowerCase()}"><input type="checkbox" ${excelFilterContext.selected.has(v)?'checked':''} onchange="excelToggleValue(${i},this.checked)"><span title="${esc(excelDisplay(kind,key,v))}">${esc(excelDisplay(kind,key,v))}</span></label>`).join('')}</div>
   <div class="excel-actions"><button class="excel-clear" onclick="excelClear()">Limpar filtro</button><button class="excel-ok" onclick="excelApply()">OK</button></div>`;
@@ -543,6 +545,19 @@ function openExcelFilter(ev,kind,key,label){
 function excelToggleValue(i,on){if(!excelFilterContext)return;const v=excelFilterContext.values[i];on?excelFilterContext.selected.add(v):excelFilterContext.selected.delete(v);const all=$('#excelAll');if(all)all.checked=excelFilterContext.selected.size===excelFilterContext.values.length} window.excelToggleValue=excelToggleValue;
 function excelSelectAll(on){if(!excelFilterContext)return;excelFilterContext.selected=on?new Set(excelFilterContext.values):new Set();$$('#excelFilterPopup .excel-value input').forEach(x=>x.checked=on)} window.excelSelectAll=excelSelectAll;
 function excelSearch(q){q=norm(q).toLowerCase();$$('#excelFilterPopup .excel-value').forEach(x=>x.classList.toggle('hidden',q&&!norm(x.dataset.search).toLowerCase().includes(q)))} window.excelSearch=excelSearch;
+function excelSearchEnter(e){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  if(!excelFilterContext)return;
+  const {kind,key,values}=excelFilterContext;
+  const q=norm(e.target.value).toLowerCase();
+  // Diferente do Excel: digitou e apertou Enter já filtra e aplica na hora, sem precisar
+  // mexer em checkbox nem em "selecionar tudo" (que no Excel normal marcaria tudo de novo).
+  const matches=q?values.filter(v=>norm(excelDisplay(kind,key,v)).toLowerCase().includes(q)):values;
+  if(!matches.length)return;
+  excelFilterContext.selected=new Set(matches);
+  excelApply();
+} window.excelSearchEnter=excelSearchEnter;
 function excelApply(){if(!excelFilterContext)return;const {kind,key,values,selected}=excelFilterContext;if(selected.size===values.length)delete excelFilters[kind][key];else excelFilters[kind][key]=[...selected];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():renderStock()} window.excelApply=excelApply;
 function excelClear(){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;delete excelFilters[kind][key];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():renderStock()} window.excelClear=excelClear;
 function excelSort(dir){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;if(kind==='animals')animalSort={key,dir};else if(kind==='iatf')iatfSort={key,dir};else stockSort={key,dir};closeExcelFilter();kind==='animals'?renderAnimalTable():kind==='iatf'?renderIatfRows():renderStock()} window.excelSort=excelSort;
@@ -687,7 +702,7 @@ function renderAnimalTable(){
   const rows=animalRowsFiltered();
   const total=seasonAnimals().length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matrizes exibidas de <strong style="color:#233129;margin:0 4px">${total}</strong> cadastradas</div><div class="table-wrap"><table><thead>
-  <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th>IATF atual</th><th>Criada em</th><th></th></tr>
+  <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th>${excelHead('animals','curCycle','IATF atual')}</th><th>${excelHead('animals','createdAt','Criada em')}</th><th></th></tr>
   </thead><tbody>${rows.map(a=>`<tr>
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input nav-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-rgd')" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
@@ -840,26 +855,17 @@ function toggleIatfCategory(cat,checked){
 function selectIatfCycle(v){iatfCycle=Number(v);iatfCategory='';iatfPage()} window.selectIatfCycle=selectIatfCycle;
 function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
-  const cats=getIatfCycleCategories(iatfCycle);
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
   <div class="toolbar"><div class="filters">
     <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
     <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
-    <div class="iatf-category-box"><span>Categorias:</span>
-      <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
-      <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
-      <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
-    </div>
-    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+    <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
   </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marque uma ou mais categorias pra adicionar TODAS as matrizes elegíveis delas de uma vez. Ex.: 1ª IATF = Vacas + Primíparas. Para categorias já trabalhadas, entram as matrizes <strong>Vazias ou ainda Sem resultado</strong>. Se a categoria nunca participou de IATF anterior, entram <strong>todas as matrizes</strong> dela. Prenhas e PRT ficam de fora. Quer só uma matriz específica, sem marcar a categoria toda? Usa a coluna <strong>"IATF atual"</strong> lá na aba Matrizes.</div>
+  <div class="notice green">Inserção é sempre manual. Use <strong>"+ Matriz(es) nesta IATF"</strong> pra colar vários RGDs de uma vez (um por linha), ou a coluna <strong>"IATF atual"</strong> lá na aba Matrizes pra colocar uma de cada vez.</div>
   <div id="iatfTable"></div>
   </div>`;
-  // A partir de agora, adicionar uma matriz nova NÃO a insere sozinha em nenhuma IATF.
-  // A montagem automática só acontece no exato momento em que você marca a caixinha de
-  // categoria (dentro de toggleIatfCategory) — não fica "varrendo" matrizes novas depois.
   renderIatfRows()
 }
 function animalDatalist(){return `<datalist id="animalsList">${seasonAnimals().map(a=>`<option value="${esc(a.rgd)}">${esc(a.category)}</option>`).join('')}</datalist>`}
@@ -959,21 +965,31 @@ function returnPrts(){
 } window.returnPrts=returnPrts;
 function quickAddAnimalToCycle(){
   openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>${animalDatalist()}
-  <div class="notice green">Só é possível adicionar matrizes que já estão cadastradas na aba <strong>Matrizes</strong>. Para cadastrar uma matriz nova, use a aba Matrizes.</div>
+  <div class="notice green">Só é possível adicionar matrizes que já estão cadastradas na aba <strong>Matrizes</strong>. Cole vários RGDs de uma vez (um por linha, ou separados por vírgula) pra adicionar todos juntos.</div>
   <div class="form-grid">
-  <div class="field full"><label>Matriz (digite o RGD para buscar)</label><input id="qRgdPick" list="animalsList" class="input" placeholder="Ex: MRA 11071" autocomplete="off"><div class="help">Comece a digitar que a lista filtra sozinha.</div></div>
+  <div class="field full"><label>RGD(s)</label><textarea id="qRgdPick" class="input" rows="6" style="width:100%;min-height:120px;font-family:inherit;resize:vertical" placeholder="Ex:&#10;MRA 11071&#10;MRA 10033&#10;MRA 10047" autocomplete="off"></textarea><div class="help">Um RGD por linha (ou separados por vírgula). Os que não existirem em Matrizes, ou já estiverem nesta IATF, são avisados e pulados — o resto entra normal.</div></div>
   </div>
   <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar</button></div>`);
   setTimeout(()=>{const el=$('#qRgdPick');if(el)el.focus()},60)
 } window.quickAddAnimalToCycle=quickAddAnimalToCycle;
 function saveQuickAnimal(){
-  const rgd=$('#qRgdPick').value.trim();
-  if(!rgd)return alert('Digite o RGD da matriz.');
-  const a=seasonAnimals().find(x=>norm(x.rgd)===norm(rgd));
-  if(!a)return alert(`A matriz "${rgd}" não está cadastrada nesta estação. Cadastre primeiro na aba Matrizes.`);
-  if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle))return alert('Essa matriz já está nesta IATF.');
-  db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
-  save();closeModal();iatfPage()
+  const raw=$('#qRgdPick').value||'';
+  const rgds=[...new Set(raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean))];
+  if(!rgds.length)return alert('Digite ou cole pelo menos um RGD.');
+  let ok=0;const naoEncontrado=[],jaEstava=[];
+  rgds.forEach(rgd=>{
+    const a=seasonAnimals().find(x=>norm(x.rgd)===norm(rgd));
+    if(!a){naoEncontrado.push(rgd);return}
+    if(seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===iatfCycle)){jaEstava.push(rgd);return}
+    db.iatf.push({id:uid('i'),seasonId:db.meta.activeSeasonId,category:a.category,cycle:iatfCycle,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
+    ok++
+  });
+  save();closeModal();
+  let msg=`${ok} matriz(es) adicionada(s) à ${iatfCycle}ª IATF.`;
+  if(jaEstava.length)msg+=`\n${jaEstava.length} já estavam nesta IATF: ${jaEstava.join(', ')}`;
+  if(naoEncontrado.length)msg+=`\n${naoEncontrado.length} não encontrada(s) em Matrizes: ${naoEncontrado.join(', ')}`;
+  if(jaEstava.length||naoEncontrado.length)alert(msg);
+  iatfPage()
 } window.saveQuickAnimal=saveQuickAnimal;
 function iatfExcludedCurrent(){
   const sid=db.meta.activeSeasonId;
