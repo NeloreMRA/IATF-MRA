@@ -652,9 +652,24 @@ function matrizCurrentCycle(rgd){
 function setAnimalIatfCycle(id,val,el){
   const a=db.animals.find(x=>x.id===id);if(!a)return;
   val=String(val||'').trim();
-  if(!val){el.value=matrizCurrentCycle(a.rgd);return} // não apaga nada, só evita ficar vazio à toa
+  const atual=matrizCurrentCycle(a.rgd);
+  if(!val){
+    if(atual===''){el.value='';return} // já não tava em nenhuma, não tem o que apagar
+    if(!confirm(`Remover ${a.rgd} da ${atual}ª IATF? Ela vai pra "Excluídas desta IATF" (dá pra recuperar lá).`)){el.value=atual;return}
+    const r=db.iatf.find(x=>x.seasonId===a.seasonId&&norm(x.rgd)===norm(a.rgd)&&Number(x.cycle)===Number(atual));
+    if(r){
+      db.iatfExcluded=db.iatfExcluded||[];
+      if(!db.iatfExcluded.some(x=>x.seasonId===r.seasonId&&Number(x.cycle)===Number(r.cycle)&&x.rgd===r.rgd)){
+        db.iatfExcluded.unshift({id:uid('ix'),seasonId:r.seasonId,cycle:Number(r.cycle),rgd:r.rgd,category:r.category,excludedAt:new Date().toISOString()});
+      }
+      db.iatf=db.iatf.filter(x=>x.id!==r.id);
+      save();
+    }
+    el.value='';
+    return;
+  }
   const cy=Number(val);
-  if(!Number.isFinite(cy)||cy<1||!Number.isInteger(cy)){alert('Informe um número de IATF válido (1, 2, 3...).');el.value=matrizCurrentCycle(a.rgd);return}
+  if(!Number.isFinite(cy)||cy<1||!Number.isInteger(cy)){alert('Informe um número de IATF válido (1, 2, 3...).');el.value=atual;return}
   if(!seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===cy)){
     db.iatf.push({id:uid('i'),seasonId:a.seasonId,category:a.category,cycle:cy,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
     save();
@@ -710,7 +725,7 @@ function renderAnimalTable(){
   <td><select class="cell-input category-select nav-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-cat')" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
   <td><input class="cell-input" type="number" min="1" step="1" style="width:70px;text-align:center" value="${a.curCycle}" placeholder="—" title="Número da IATF em que essa matriz está. Vazio = ainda não está em nenhuma." onchange="setAnimalIatfCycle('${a.id}',this.value,this)"></td>
-  <td style="white-space:nowrap;color:#7d867f;font-size:11px">${fmtDate(a.createdAt)}</td>
+  <td style="white-space:nowrap"><input class="cell-input" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onchange="editAnimalCell('${a.id}','createdAt',this.value,this)"></td>
   <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
 }
@@ -733,6 +748,8 @@ function editAnimalCell(id,key,val,el){
     a.category=val;
     db.iatf.forEach(r=>{if(r.seasonId===a.seasonId&&norm(r.rgd)===norm(a.rgd))r.category=val});
     if(el){el.classList.remove('cat-vacas','cat-primi','cat-preco');el.classList.add(catClass(val));}
+  }else if(key==='createdAt'){
+    a.createdAt=val; // pode deixar vazio também, sem problema
   }
   el.dataset.prev=val;
   // Não recria a tabela a cada edição: mantém foco e rolagem exatamente onde estão.
@@ -855,15 +872,21 @@ function toggleIatfCategory(cat,checked){
 function selectIatfCycle(v){iatfCycle=Number(v);iatfCategory='';iatfPage()} window.selectIatfCycle=selectIatfCycle;
 function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
+  const cats=getIatfCycleCategories(iatfCycle);
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
   <div class="toolbar"><div class="filters">
     <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
     <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
+    <div class="iatf-category-box"><span>Categorias:</span>
+      <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
+      <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
+      <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
+    </div>
     <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
   </div><div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div></div>
-  <div class="notice green">Inserção é sempre manual. Use <strong>"+ Matriz(es) nesta IATF"</strong> pra colar vários RGDs de uma vez (um por linha), ou a coluna <strong>"IATF atual"</strong> lá na aba Matrizes pra colocar uma de cada vez.</div>
+  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marca aqui pra adicionar de uma vez TODAS as matrizes elegíveis daquela categoria (Vazias/Sem resultado). Isso só roda no momento em que você marca a caixinha — matriz nova cadastrada depois não entra sozinha. Pra adicionar uma de cada vez (ou colar vários RGDs), use <strong>"+ Matriz(es) nesta IATF"</strong> ou a coluna <strong>"IATF atual"</strong> em Matrizes.</div>
   <div id="iatfTable"></div>
   </div>`;
   renderIatfRows()
