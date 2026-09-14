@@ -14,14 +14,15 @@
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:#17211c;background:#f5f7f5
 }
-*{box-sizing:border-box} body{margin:0}.app{min-height:100vh;display:grid;grid-template-columns:250px 1fr}
+*{box-sizing:border-box} html,body{height:100%;margin:0;overflow:hidden}body{margin:0}.app{height:100vh;display:grid;grid-template-columns:250px 1fr}
 .sidebar{background:#153e2c;color:#fff;padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .brand{display:flex;gap:12px;align-items:center;padding:0 8px 28px}.logo{width:38px;height:38px;border-radius:10px;background:#e7b549;color:#153e2c;display:grid;place-items:center;font-weight:900;font-size:12px}
 .brand strong,.brand span{display:block}.brand span{font-size:12px;opacity:.7;margin-top:3px}.sidebar nav{display:flex;flex-direction:column;gap:6px}
 .nav{border:0;background:transparent;color:#dce9e2;padding:12px 14px;text-align:left;border-radius:9px;font-size:14px;cursor:pointer;display:flex;gap:10px;align-items:center}
 .nav:hover,.nav.active{background:#24583f;color:#fff}.sidebar-foot{margin-top:auto;font-size:11px;opacity:.82;padding:12px;display:flex;align-items:center;gap:8px}
-.dot{width:8px;height:8px;border-radius:50%;background:#e0b84f;box-shadow:0 0 0 2px #ffffff18;transition:background .2s}main{padding:0 32px 40px;min-width:0}
-header{min-height:96px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e1e6e2;margin-bottom:24px;gap:14px}
+.dot{width:8px;height:8px;border-radius:50%;background:#e0b84f;box-shadow:0 0 0 2px #ffffff18;transition:background .2s}main{padding:0 32px 20px;min-width:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+header{min-height:96px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e1e6e2;margin-bottom:24px;gap:14px}
+#content{flex:1 1 auto;min-height:0;overflow-y:auto}
 h1{font-size:24px;margin:0 0 5px}header p{margin:0;color:#768078;font-size:13px}.header-actions,.filters,.quick-add,.actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 button{font:inherit}.primary,.ghost,.danger-btn{padding:9px 13px;border-radius:8px;cursor:pointer}.primary{border:0;background:#1f6a49;color:white}.primary:hover{background:#185b3e}
 .ghost{background:white;border:1px solid #d9dfda;color:#334139}.ghost:disabled{opacity:.45;cursor:not-allowed}.danger-btn{background:#fff;border:1px solid #e7bbb5;color:#a33627}
@@ -72,8 +73,12 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .excel-actions{display:flex;justify-content:flex-end;gap:7px;border-top:1px solid #e8ece9;padding-top:9px}.excel-actions button{border:1px solid #d6ddd7;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}.excel-actions .excel-ok{border-color:#7d9a85;background:#f7faf8}.excel-actions .excel-clear{color:#b14d3d}
 .iatf-qty{width:64px!important;min-width:64px!important;max-width:64px!important;text-align:center;padding-left:4px!important;padding-right:4px!important}.iatf-result{width:66px!important;min-width:66px!important;max-width:66px;text-align:center;text-transform:uppercase;padding-left:2px!important;padding-right:2px!important;font-weight:700}.iatf-sire{min-width:200px!important}.iatf-sire2{width:125px!important;min-width:125px!important;max-width:125px!important}.iatf-caneca{width:52px!important;min-width:52px!important;max-width:52px!important;text-align:center;padding-left:2px!important;padding-right:2px!important}.iatf-retorno{width:85px!important;min-width:85px!important;max-width:85px!important}
 /* Matrizes mais compactas, como um zoom menor, sem alterar o resto do sistema */
-.animals-page,.iatf-page,.stock-page{font-size:12px}
-.animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{max-height:76vh}
+.animals-page,.iatf-page,.stock-page{font-size:12px;display:flex;flex-direction:column;height:100%;min-height:0}
+.animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none}
+#animalTable,#iatfTable,#stockTable,#acasalTable,#embrioesTable,#fivTable{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.zoom-box{display:flex;align-items:center;gap:2px;background:#fff;border:1px solid #d9dfda;border-radius:8px;padding:2px}
+.zoom-box .mini{border:0;padding:5px 9px;font-size:13px;font-weight:700}
+.zoom-label{font-size:11px;color:#69746c;min-width:34px;text-align:center;display:inline-block}
 .animals-page table,.iatf-page table,.stock-page table{font-size:11px}
 .animals-page th,.iatf-page th,.stock-page th{padding:7px 7px;font-size:9.5px}
 .animals-page td,.iatf-page td,.stock-page td{padding:4px 6px}
@@ -133,6 +138,8 @@ body.authenticated #loginScreen{display:none}
     <button data-page="iatf" class="nav">✓ <span>IATF</span></button>
     <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
     <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
+    <button data-page="embrioes" class="nav">❄ <span>Embriões</span></button>
+    <button data-page="fiv" class="nav">⚗ <span>FIV</span></button>
     <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
@@ -173,8 +180,10 @@ let animalSort={key:'rgd',dir:1},iatfSort={key:'rgd',dir:1},stockSort={key:'sald
 let animalFilters={rgd:'',firstSire:'',category:'',status:''};
 let iatfFilters={rgd:'',firstSire:'',qty:'',result:'',category:'',cycle:1};
 let stockFilters={name:'',rgdTouro:'',tank:'',caneca:'',saldo:''};
-let excelFilters={animals:{},iatf:{},stock:{},acasal:{}};
+let excelFilters={animals:{},iatf:{},stock:{},acasal:{},embrioes:{},fiv:{}};
 let acasalSort={key:'rgd',dir:1};
+let embrioesSort={key:'rgd',dir:1};
+let fivSort={key:'rgdDoadora',dir:1};
 let excelFilterContext=null;
 
 const $=s=>document.querySelector(s);
@@ -199,6 +208,8 @@ function migrate(x){
   x.acasalamentos=x.acasalamentos||[];
   x.acasalamentos.forEach(a=>{if(!a.createdAt)a.createdAt='2026-08-30'});
   x.naoUtilizadas=x.naoUtilizadas||[];
+  x.embrioes=x.embrioes||[];
+  x.fiv=x.fiv||[];
   x.iatfExcluded=x.iatfExcluded||[];
   x.animals.forEach(a=>{a.active=true;if(!a.seasonId)a.seasonId=x.meta.activeSeasonId;if(!a.createdAt)a.createdAt='2026-08-30'});
   (x.deletedAnimals||[]).forEach(d=>{if(d.animal&&!d.animal.seasonId)d.animal.seasonId=x.meta.activeSeasonId});
@@ -480,6 +491,18 @@ window.go=go;
 function renderSeasonSelector(){
   $('#seasonHeader').innerHTML=db.seasons.map(s=>`<option value="${esc(s.id)}" ${s.id===db.meta.activeSeasonId?'selected':''}>${esc(s.name)}</option>`).join('')
 }
+let tableZoomPct=100;
+function applyTableZoom(){
+  document.querySelectorAll('.table-wrap').forEach(w=>{w.style.zoom=(tableZoomPct/100)});
+}
+function zoomTable(delta){
+  tableZoomPct=Math.max(50,Math.min(150,tableZoomPct+delta));
+  applyTableZoom();
+  $$('.zoom-label').forEach(l=>l.textContent=tableZoomPct+'%');
+} window.zoomTable=zoomTable;
+function zoomControlsHTML(){
+  return `<div class="zoom-box"><button class="mini" type="button" onclick="zoomTable(-10)" title="Diminuir">−</button><span class="zoom-label">${tableZoomPct}%</span><button class="mini" type="button" onclick="zoomTable(10)" title="Aumentar">+</button></div>`;
+}
 function captureViewPosition(){
   const wraps={};
   document.querySelectorAll('.table-wrap').forEach((el,i)=>{
@@ -499,6 +522,7 @@ function restoreViewPosition(pos){
       const st=pos.wraps[key];
       if(st){el.scrollTop=st.top;el.scrollLeft=st.left}
     });
+    applyTableZoom();
   };
   apply();requestAnimationFrame(()=>{apply();requestAnimationFrame(apply)});
 }
@@ -508,6 +532,8 @@ function render(){
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
   else if(page==='acasal')acasalPage();
+  else if(page==='embrioes')embrioesPage();
+  else if(page==='fiv')fivPage();
   else if(page==='deleted')deletedAnimalsPage();
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
@@ -523,6 +549,8 @@ function rawRowsForExcel(kind){
   if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   if(kind==='acasal')return (db.acasalamentos||[]).slice();
+  if(kind==='embrioes')return (db.embrioes||[]).map(e=>({...e,estoqueCentral:embEstoqueCentral(e),estoqueFazenda:embEstoqueFazenda(e)}));
+  if(kind==='fiv')return (db.fiv||[]).slice();
   return []
 }
 function excelValue(row,key){const v=row?.[key];return v===null||v===undefined?'':String(v)}
@@ -531,6 +559,7 @@ function excelDisplay(kind,key,v){
   if(kind==='animals'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
   if(kind==='animals'&&key==='curCycle')return v===''?'(Sem IATF)':v+'ª IATF';
   if(kind==='acasal'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
+  if(kind==='fiv'&&key==='resultado')return v===''?'(Vazio)':v;
   if(kind==='iatf'&&key==='result')return v===''?'(Vazio)':v;
   if(v==='')return '(Vazios)';return v
 }
@@ -570,9 +599,13 @@ function excelSearchEnter(e){
   excelFilterContext.selected=new Set(matches);
   excelApply();
 } window.excelSearchEnter=excelSearchEnter;
-function excelApply(){if(!excelFilterContext)return;const {kind,key,values,selected}=excelFilterContext;if(selected.size===values.length)delete excelFilters[kind][key];else excelFilters[kind][key]=[...selected];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():k==='acasal'?renderAcasalTable():renderStock()} window.excelApply=excelApply;
-function excelClear(){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;delete excelFilters[kind][key];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():k==='acasal'?renderAcasalTable():renderStock()} window.excelClear=excelClear;
-function excelSort(dir){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;if(kind==='animals')animalSort={key,dir};else if(kind==='iatf')iatfSort={key,dir};else if(kind==='acasal')acasalSort={key,dir};else stockSort={key,dir};closeExcelFilter();kind==='animals'?renderAnimalTable():kind==='iatf'?renderIatfRows():kind==='acasal'?renderAcasalTable():renderStock()} window.excelSort=excelSort;
+function renderByKind(k){
+  const fns={animals:renderAnimalTable,iatf:renderIatfRows,acasal:renderAcasalTable,stock:renderStock,embrioes:renderEmbrioesTable,fiv:renderFivTable};
+  (fns[k]||function(){})();
+}
+function excelApply(){if(!excelFilterContext)return;const {kind,key,values,selected}=excelFilterContext;if(selected.size===values.length)delete excelFilters[kind][key];else excelFilters[kind][key]=[...selected];const k=kind;closeExcelFilter();renderByKind(k)} window.excelApply=excelApply;
+function excelClear(){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;delete excelFilters[kind][key];const k=kind;closeExcelFilter();renderByKind(k)} window.excelClear=excelClear;
+function excelSort(dir){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;if(kind==='animals')animalSort={key,dir};else if(kind==='iatf')iatfSort={key,dir};else if(kind==='acasal')acasalSort={key,dir};else if(kind==='embrioes')embrioesSort={key,dir};else if(kind==='fiv')fivSort={key,dir};else stockSort={key,dir};closeExcelFilter();renderByKind(kind)} window.excelSort=excelSort;
 document.addEventListener('click',e=>{const p=$('#excelFilterPopup');if(p&&!p.contains(e.target)&&!e.target.closest('.excel-filter-btn'))closeExcelFilter()});
 
 /* DASHBOARD */
@@ -712,7 +745,7 @@ function animals(){
       <button class="ghost" onclick="toggleAnimalSelection()">${animalSelecting?'Cancelar seleção':'☑ Selecionar'}</button>
       ${animalSelecting?`<button class="danger-btn" onclick="deleteSelectedAnimals()">Excluir selecionadas (${animalSelected.size})</button>`:''}
     </div>
-    <div class="out-actions"><button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
   </div>
   <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz <strong>não</strong> a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser. Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="animalTable"></div>
@@ -893,7 +926,7 @@ function iatfPage(){
       <select id="cycleSel" onchange="selectIatfCycle(this.value)">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select><button class="ghost" onclick="createNextIatf()">+ Criar IATF</button>
       <div class="date-box"><label>Data da ${iatfCycle}ª IATF</label><input type="date" class="input" style="min-width:145px" value="${esc(cycleDate(iatfCycle))}" onchange="setCycleDate(${iatfCycle},this.value)"></div>
     </div>
-    <div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div>
   </div>
   <div class="toolbar">
     <div class="filters">
@@ -1132,6 +1165,7 @@ function acasalPage(){
       <button class="danger-btn" onclick="openNaoUtilizadasPanel()">🗂 Não utilizadas (${(db.naoUtilizadas||[]).length})</button>
     </div>
     <div class="out-actions">
+      ${zoomControlsHTML()}
       <button class="ghost" onclick="exportAcasalFull()">⬇ Baixar Acasalamentos (Excel)</button>
       <button onclick="exportAcasalToMatrizesTemplate()" style="border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:#e7b549;color:#153e2c;font-weight:700">⬇ Excel pra subir em Matrizes</button>
     </div>
@@ -1206,7 +1240,7 @@ function renderNaoUtilizadasModal(){
   const rows=db.naoUtilizadas||[];
   openModal(`<h2>Matrizes não utilizadas no acasalamento</h2>
   <div class="notice green">Banco de dados simples: RGD, categoria, destinação (Abate ou Receptora) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos.</div>
-  <div class="quick-add" style="margin-bottom:10px"><button class="primary" type="button" onclick="addBlankNaoUtilizada()">+ Linha em branco</button><button class="ghost" type="button" onclick="document.getElementById('naoUtilImportFile').click()">⬆ Subir Excel</button></div>
+  <div class="quick-add" style="margin-bottom:10px"><button class="primary" type="button" onclick="addBlankNaoUtilizada()">+ Linha em branco</button><button class="ghost" type="button" onclick="document.getElementById('naoUtilImportFile').click()">⬆ Subir Excel</button><button class="ghost" type="button" onclick="exportNaoUtilizadas()">⬇ Baixar Excel</button></div>
   <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px">
   <table style="width:100%;border-collapse:collapse;font-size:12px" id="nuTable">
   <thead><tr style="background:#f8faf8"><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">RGD</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Categoria</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Destinação</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Motivo</th><th></th></tr></thead>
@@ -1230,6 +1264,13 @@ function deleteNaoUtilizada(id){
   db.naoUtilizadas=(db.naoUtilizadas||[]).filter(x=>x.id!==id);
   save();renderNaoUtilizadasModal();
 } window.deleteNaoUtilizada=deleteNaoUtilizada;
+function exportNaoUtilizadas(){
+  if(!needXLSX())return;
+  const rows=(db.naoUtilizadas||[]).filter(r=>String(r.rgd||'').trim());
+  if(!rows.length)return alert('Nenhuma linha pra exportar.');
+  const out=rows.map(r=>({RGD:r.rgd,CATEGORIA:r.category||'',DESTINACAO:r.destino||'',MOTIVO:r.motivo||''}));
+  jsonToXlsx(out,'nao_utilizadas.xlsx','NaoUtilizadas');
+} window.exportNaoUtilizadas=exportNaoUtilizadas;
 
 /* IMPORTAÇÃO — Acasalamentos e Não Utilizadas */
 function importAcasalExcel(file){
@@ -1310,6 +1351,153 @@ function importNaoUtilizadasExcel(file){
   })
 } window.importNaoUtilizadasExcel=importNaoUtilizadasExcel;
 
+/* EMBRIÕES — Central (Fresco+VIT+DT) e Fazenda (Saída−Usados), independente */
+function embEstoqueCentral(e){return (Number(e.fresco)||0)+(Number(e.vit)||0)+(Number(e.dt)||0)}
+function embEstoqueFazenda(e){return (Number(e.saida)||0)-(Number(e.usadosFazenda)||0)}
+function embrioesRowsFiltered(){
+  let rows=(db.embrioes||[]).map(e=>({...e,estoqueCentral:embEstoqueCentral(e),estoqueFazenda:embEstoqueFazenda(e)})).filter(e=>excelPass('embrioes',e));
+  const k=embrioesSort.key,d=embrioesSort.dir;
+  rows.sort((a,b)=>{
+    const av=a[k],bv=b[k];
+    if(typeof av==='number'||typeof bv==='number')return ((Number(av)||0)-(Number(bv)||0))*d;
+    return String(av??'').localeCompare(String(bv??''),'pt-BR',{numeric:true})*d;
+  });
+  return rows;
+}
+function embrioesPage(){
+  title('Embriões','Controle de estoque de embriões — central e fazenda, independente das outras abas.');
+  setActions('');
+  $('#content').innerHTML=`
+  <div class="animals-page">
+  <div class="toolbar">
+    <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button></div>
+  </div>
+  <div class="notice green"><strong>Estoque Central</strong> = Fresco + VIT + DT (automático). <strong>Estoque Fazenda</strong> = Qtd Saída − Usados Fazenda (automático — assumi essa fórmula, me fala se não é isso que você quer que eu ajusto).</div>
+  <div id="embrioesTable"></div>
+  </div>`;
+  renderEmbrioesTable();
+}
+function addBlankEmbriao(){
+  db.embrioes=db.embrioes||[];
+  db.embrioes.unshift({id:uid('emb'),rgd:'',fresco:0,vit:0,dt:0,saida:0,usadosFazenda:0});
+  save();embrioesPage();
+} window.addBlankEmbriao=addBlankEmbriao;
+function renderEmbrioesTable(){
+  const root=$('#embrioesTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=embrioesRowsFiltered();
+  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
+  <tr><th>${excelHead('embrioes','rgd','RGD Doadora')}</th><th>${excelHead('embrioes','fresco','Fresco')}</th><th>${excelHead('embrioes','vit','VIT')}</th><th>${excelHead('embrioes','dt','DT')}</th><th>${excelHead('embrioes','estoqueCentral','Estoque Central')}</th><th>${excelHead('embrioes','saida','Qtd Saída')}</th><th>${excelHead('embrioes','usadosFazenda','Usados Fazenda')}</th><th>${excelHead('embrioes','estoqueFazenda','Estoque Fazenda')}</th><th></th></tr>
+  </thead><tbody>${rows.map(e=>`<tr>
+  <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:110px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-fresco" inputmode="decimal" style="width:70px;text-align:center" value="${e.fresco||''}" onkeydown="iatfEnter(event,'nav-emb-fresco')" onchange="editEmbriao('${e.id}','fresco',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-vit" inputmode="decimal" style="width:70px;text-align:center" value="${e.vit||''}" onkeydown="iatfEnter(event,'nav-emb-vit')" onchange="editEmbriao('${e.id}','vit',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-dt" inputmode="decimal" style="width:70px;text-align:center" value="${e.dt||''}" onkeydown="iatfEnter(event,'nav-emb-dt')" onchange="editEmbriao('${e.id}','dt',this.value,this)"></td>
+  <td style="text-align:center;font-weight:700;color:#245f40">${e.estoqueCentral}</td>
+  <td><input class="cell-input nav-emb-saida" inputmode="decimal" style="width:70px;text-align:center" value="${e.saida||''}" onkeydown="iatfEnter(event,'nav-emb-saida')" onchange="editEmbriao('${e.id}','saida',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-usados" inputmode="decimal" style="width:70px;text-align:center" value="${e.usadosFazenda||''}" onkeydown="iatfEnter(event,'nav-emb-usados')" onchange="editEmbriao('${e.id}','usadosFazenda',this.value,this)"></td>
+  <td style="text-align:center;font-weight:700;color:${e.estoqueFazenda<0?'#a84d2b':'#245f40'}">${e.estoqueFazenda}</td>
+  <td><button class="mini" onclick="deleteEmbriao('${e.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  restoreViewPosition(__view);
+}
+function editEmbriao(id,key,val,el){
+  const e=(db.embrioes||[]).find(x=>x.id===id);if(!e)return;
+  if(key==='rgd'){e.rgd=String(val||'').trim();}
+  else{const n=Number(String(val).replace(',','.'));e[key]=Number.isFinite(n)?n:0;}
+  save();
+  const tr=el.closest('tr');
+  if(tr){
+    const tds=tr.querySelectorAll('td');
+    tds[4].textContent=embEstoqueCentral(e);
+    const ef=embEstoqueFazenda(e);
+    tds[7].textContent=ef; tds[7].style.color = ef<0 ? '#a84d2b' : '#245f40';
+  }
+} window.editEmbriao=editEmbriao;
+function deleteEmbriao(id){
+  if(!confirm('Excluir esta linha de embriões?'))return;
+  db.embrioes=(db.embrioes||[]).filter(x=>x.id!==id);
+  save();embrioesPage();
+} window.deleteEmbriao=deleteEmbriao;
+function exportEmbrioes(){
+  if(!needXLSX())return;
+  const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
+  if(!rows.length)return alert('Nenhuma linha pra exportar.');
+  const out=rows.map(e=>({RGD:e.rgd,FRESCO:e.fresco||0,VIT:e.vit||0,DT:e.dt||0,ESTOQUE_CENTRAL:e.estoqueCentral,QTD_SAIDA:e.saida||0,USADOS_FAZENDA:e.usadosFazenda||0,ESTOQUE_FAZENDA:e.estoqueFazenda}));
+  jsonToXlsx(out,'embrioes.xlsx','Embrioes');
+} window.exportEmbrioes=exportEmbrioes;
+
+/* FIV — RGD Doadora puxa da lista já cadastrada em Embriões */
+function embDoadoraDatalist(){
+  const list=[...new Set((db.embrioes||[]).map(e=>e.rgd).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}));
+  return `<datalist id="embDoadoraList">${list.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist>`;
+}
+function fivRowsFiltered(){
+  let rows=(db.fiv||[]).filter(r=>excelPass('fiv',r));
+  const k=fivSort.key,d=fivSort.dir;
+  rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
+  return rows;
+}
+function fivPage(){
+  title('FIV','Transferência de embriões — RGD Doadora vem da lista já cadastrada em Embriões.');
+  setActions('');
+  $('#content').innerHTML=`
+  ${bullDatalist()}${embDoadoraDatalist()}<datalist id="fivResultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
+  <div class="animals-page">
+  <div class="toolbar">
+    <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button></div>
+  </div>
+  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). 1º Acasalamento puxa do Estoque de sêmen.</div>
+  <div id="fivTable"></div>
+  </div>`;
+  renderFivTable();
+}
+function addBlankFiv(){
+  db.fiv=db.fiv||[];
+  db.fiv.unshift({id:uid('fiv'),rgdDoadora:'',sire:'',receptora:'',abcz:'',resultado:''});
+  save();fivPage();
+} window.addBlankFiv=addBlankFiv;
+function renderFivTable(){
+  const root=$('#fivTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=fivRowsFiltered();
+  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
+  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
+  </thead><tbody>${rows.map(r=>`<tr>
+  <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
+  <td><input class="cell-input nav-fiv-sire" list="bullsList" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"></td>
+  <td><input class="cell-input nav-fiv-recept" style="min-width:110px" value="${esc(r.receptora||'')}" onkeydown="iatfEnter(event,'nav-fiv-recept')" onchange="editFiv('${r.id}','receptora',this.value,this)"></td>
+  <td><input class="cell-input nav-fiv-abcz" style="min-width:110px" value="${esc(r.abcz||'')}" onkeydown="iatfEnter(event,'nav-fiv-abcz')" onchange="editFiv('${r.id}','abcz',this.value,this)"></td>
+  <td><input class="cell-input nav-fiv-res" list="fivResultList" maxlength="3" style="width:70px;text-align:center" value="${esc(r.resultado||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-fiv-res')" onchange="editFiv('${r.id}','resultado',this.value,this)"></td>
+  <td><button class="mini" onclick="deleteFiv('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  restoreViewPosition(__view);
+}
+function editFiv(id,key,val,el){
+  const r=(db.fiv||[]).find(x=>x.id===id);if(!r)return;
+  val=String(val||'').trim();
+  if(key==='sire' && val && !sireExists(val)){alert(`O touro "${val}" não existe no Estoque.`);el.value=r.sire||'';return}
+  if(key==='resultado'){
+    const v=normResult(val);
+    if(val && !v){alert('Resultado deve ser P, V ou PRT.');el.value=r.resultado||'';return}
+    val=v;
+  }
+  r[key]=val;
+  save();
+} window.editFiv=editFiv;
+function deleteFiv(id){
+  if(!confirm('Excluir esta linha de FIV?'))return;
+  db.fiv=(db.fiv||[]).filter(x=>x.id!==id);
+  save();fivPage();
+} window.deleteFiv=deleteFiv;
+function exportFiv(){
+  if(!needXLSX())return;
+  const rows=fivRowsFiltered().filter(r=>String(r.rgdDoadora||'').trim());
+  if(!rows.length)return alert('Nenhuma linha pra exportar.');
+  const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',RESULTADO:r.resultado||''}));
+  jsonToXlsx(out,'fiv.xlsx','FIV');
+} window.exportFiv=exportFiv;
+
 /* ESTOQUE */
 function stockRowsFiltered(){
   let rows=db.semen.map(s=>({...s,saldo:stockBalance(s),used:usedEffective(s)})).filter(s=>excelPass('stock',s));
@@ -1325,7 +1513,7 @@ function stock(){
   <button class="ghost" onclick="modalStock()">+ Entrada manual</button>
   <button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
   <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button></div>
-  <div class="out-actions"><button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
+  <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
   <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div></div>`;renderStock()
 }
 function renderStock(){
