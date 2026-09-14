@@ -77,6 +77,17 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none}
 #animalTable,#iatfTable,#stockTable,#acasalTable,#embrioesTable,#fivTable{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .zoom-box{display:flex;align-items:center;gap:2px;background:#fff;border:1px solid #d9dfda;border-radius:8px;padding:2px}
+.embrioes-page,.fiv-page{font-size:12px;display:flex;flex-direction:column;height:100%;min-height:0}
+.embrioes-page .table-wrap,.fiv-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none}
+.embrioes-page table,.fiv-page table{font-size:11px}
+.embrioes-page th,.fiv-page th{padding:7px 7px;font-size:9.5px}
+.embrioes-page td,.fiv-page td{padding:4px 6px;border:1px solid #e3e7e4}
+.embrioes-page .cell-input,.fiv-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px;border:1px solid #d9dfda!important;background:#fff}
+.embrioes-page .notice,.fiv-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
+.embrioes-page .toolbar,.fiv-page .toolbar{margin-bottom:7px}
+.grp-estoque{background:#e7f0ff;color:#245a9c}
+.grp-saida{background:#fff0da;color:#8a5919}
+.grp-usados{background:#efe8ff;color:#6743a0}
 .zoom-box .mini{border:0;padding:5px 9px;font-size:13px;font-weight:700}
 .zoom-label{font-size:11px;color:#69746c;min-width:34px;text-align:center;display:inline-block}
 .animals-page table,.iatf-page table,.stock-page table{font-size:11px}
@@ -549,7 +560,7 @@ function rawRowsForExcel(kind){
   if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
   if(kind==='acasal')return (db.acasalamentos||[]).slice();
-  if(kind==='embrioes')return (db.embrioes||[]).map(e=>({...e,estoqueCentral:embEstoqueCentral(e),estoqueFazenda:embEstoqueFazenda(e)}));
+  if(kind==='embrioes')return (db.embrioes||[]).map(e=>({...e,...embRowCalc(e)}));
   if(kind==='fiv')return (db.fiv||[]).slice();
   return []
 }
@@ -1351,11 +1362,20 @@ function importNaoUtilizadasExcel(file){
   })
 } window.importNaoUtilizadasExcel=importNaoUtilizadasExcel;
 
-/* EMBRIÕES — Central (Fresco+VIT+DT) e Fazenda (Saída−Usados), independente */
-function embEstoqueCentral(e){return (Number(e.fresco)||0)+(Number(e.vit)||0)+(Number(e.dt)||0)}
-function embEstoqueFazenda(e){return (Number(e.saida)||0)-(Number(e.usadosFazenda)||0)}
+/* EMBRIÕES — Estoque / Saída Fazenda / Usados, cada um com Fresco/VIT/DT, independente */
+function embUsados(rgd, tipo){
+  return (db.fiv||[]).filter(f=>norm(f.rgdDoadora)===norm(rgd) && f.tipo===tipo).length;
+}
+function embRowCalc(e){
+  const estTotal=(Number(e.estFresco)||0)+(Number(e.estVit)||0)+(Number(e.estDt)||0);
+  const saidaTotal=(Number(e.saidaFresco)||0)+(Number(e.saidaVit)||0)+(Number(e.saidaDt)||0);
+  const usoFresco=embUsados(e.rgd,'Fresco'),usoVit=embUsados(e.rgd,'VIT'),usoDt=embUsados(e.rgd,'DT');
+  const usoTotal=usoFresco+usoVit+usoDt;
+  const saldoTotal=saidaTotal-usoTotal;
+  return {estTotal,saidaTotal,usoFresco,usoVit,usoDt,usoTotal,saldoTotal};
+}
 function embrioesRowsFiltered(){
-  let rows=(db.embrioes||[]).map(e=>({...e,estoqueCentral:embEstoqueCentral(e),estoqueFazenda:embEstoqueFazenda(e)})).filter(e=>excelPass('embrioes',e));
+  let rows=(db.embrioes||[]).map(e=>({...e,...embRowCalc(e)})).filter(e=>excelPass('embrioes',e));
   const k=embrioesSort.key,d=embrioesSort.dir;
   rows.sort((a,b)=>{
     const av=a[k],bv=b[k];
@@ -1365,22 +1385,22 @@ function embrioesRowsFiltered(){
   return rows;
 }
 function embrioesPage(){
-  title('Embriões','Controle de estoque de embriões — central e fazenda, independente das outras abas.');
+  title('Embriões','Estoque, saída pra fazenda e uso — separado por tipo (Fresco/VIT/DT), independente das outras abas.');
   setActions('');
   $('#content').innerHTML=`
-  <div class="animals-page">
+  <div class="embrioes-page">
   <div class="toolbar">
     <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button></div>
   </div>
-  <div class="notice green"><strong>Estoque Central</strong> = Fresco + VIT + DT (automático). <strong>Estoque Fazenda</strong> = Qtd Saída − Usados Fazenda (automático — assumi essa fórmula, me fala se não é isso que você quer que eu ajusto).</div>
+  <div class="notice green"><strong>Usados</strong> vem sozinho da aba FIV (conta quantas linhas de FIV têm aquele RGD + aquele Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total. Os grupos têm cor pra não confundir a grade.</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
 }
 function addBlankEmbriao(){
   db.embrioes=db.embrioes||[];
-  db.embrioes.unshift({id:uid('emb'),rgd:'',fresco:0,vit:0,dt:0,saida:0,usadosFazenda:0});
+  db.embrioes.unshift({id:uid('emb'),rgd:'',estFresco:0,estVit:0,estDt:0,saidaFresco:0,saidaVit:0,saidaDt:0});
   save();embrioesPage();
 } window.addBlankEmbriao=addBlankEmbriao;
 function renderEmbrioesTable(){
@@ -1388,31 +1408,55 @@ function renderEmbrioesTable(){
   const __view=captureViewPosition();
   const rows=embrioesRowsFiltered();
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('embrioes','rgd','RGD Doadora')}</th><th>${excelHead('embrioes','fresco','Fresco')}</th><th>${excelHead('embrioes','vit','VIT')}</th><th>${excelHead('embrioes','dt','DT')}</th><th>${excelHead('embrioes','estoqueCentral','Estoque Central')}</th><th>${excelHead('embrioes','saida','Qtd Saída')}</th><th>${excelHead('embrioes','usadosFazenda','Usados Fazenda')}</th><th>${excelHead('embrioes','estoqueFazenda','Estoque Fazenda')}</th><th></th></tr>
+  <tr>
+    <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','rgd','RGD Doadora')}</th>
+    <th colspan="4" class="grp-estoque" style="position:static;text-align:center">ESTOQUE</th>
+    <th colspan="4" class="grp-saida" style="position:static;text-align:center">SAÍDA FAZENDA</th>
+    <th colspan="4" class="grp-usados" style="position:static;text-align:center">USADOS</th>
+  </tr>
+  <tr>
+    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estFresco','Fresco')}</th>
+    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estVit','VIT')}</th>
+    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estDt','DT')}</th>
+    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estTotal','TOTAL')}</th>
+    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaFresco','Fresco')}</th>
+    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaVit','VIT')}</th>
+    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaDt','DT')}</th>
+    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaTotal','Total')}</th>
+    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoFresco','Fresco')}</th>
+    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoVit','VIT')}</th>
+    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoDt','DT')}</th>
+    <th class="grp-usados" style="position:static">${excelHead('embrioes','saldoTotal','Saldo Total')}</th>
+  </tr>
   </thead><tbody>${rows.map(e=>`<tr>
   <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:110px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
-  <td><input class="cell-input nav-emb-fresco" inputmode="decimal" style="width:70px;text-align:center" value="${e.fresco||''}" onkeydown="iatfEnter(event,'nav-emb-fresco')" onchange="editEmbriao('${e.id}','fresco',this.value,this)"></td>
-  <td><input class="cell-input nav-emb-vit" inputmode="decimal" style="width:70px;text-align:center" value="${e.vit||''}" onkeydown="iatfEnter(event,'nav-emb-vit')" onchange="editEmbriao('${e.id}','vit',this.value,this)"></td>
-  <td><input class="cell-input nav-emb-dt" inputmode="decimal" style="width:70px;text-align:center" value="${e.dt||''}" onkeydown="iatfEnter(event,'nav-emb-dt')" onchange="editEmbriao('${e.id}','dt',this.value,this)"></td>
-  <td style="text-align:center;font-weight:700;color:#245f40">${e.estoqueCentral}</td>
-  <td><input class="cell-input nav-emb-saida" inputmode="decimal" style="width:70px;text-align:center" value="${e.saida||''}" onkeydown="iatfEnter(event,'nav-emb-saida')" onchange="editEmbriao('${e.id}','saida',this.value,this)"></td>
-  <td><input class="cell-input nav-emb-usados" inputmode="decimal" style="width:70px;text-align:center" value="${e.usadosFazenda||''}" onkeydown="iatfEnter(event,'nav-emb-usados')" onchange="editEmbriao('${e.id}','usadosFazenda',this.value,this)"></td>
-  <td style="text-align:center;font-weight:700;color:${e.estoqueFazenda<0?'#a84d2b':'#245f40'}">${e.estoqueFazenda}</td>
+  <td style="background:#f7fafd"><input class="cell-input nav-emb-estfresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.estFresco||''}" onkeydown="iatfEnter(event,'nav-emb-estfresco')" onchange="editEmbriao('${e.id}','estFresco',this.value,this)"></td>
+  <td style="background:#f7fafd"><input class="cell-input nav-emb-estvit" inputmode="decimal" style="width:60px;text-align:center" value="${e.estVit||''}" onkeydown="iatfEnter(event,'nav-emb-estvit')" onchange="editEmbriao('${e.id}','estVit',this.value,this)"></td>
+  <td style="background:#f7fafd"><input class="cell-input nav-emb-estdt" inputmode="decimal" style="width:60px;text-align:center" value="${e.estDt||''}" onkeydown="iatfEnter(event,'nav-emb-estdt')" onchange="editEmbriao('${e.id}','estDt',this.value,this)"></td>
+  <td class="cell-est-total" style="background:#f7fafd;text-align:center;font-weight:700;color:#245a9c">${e.estTotal}</td>
+  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidafresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaFresco||''}" onkeydown="iatfEnter(event,'nav-emb-saidafresco')" onchange="editEmbriao('${e.id}','saidaFresco',this.value,this)"></td>
+  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidavit" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaVit||''}" onkeydown="iatfEnter(event,'nav-emb-saidavit')" onchange="editEmbriao('${e.id}','saidaVit',this.value,this)"></td>
+  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidadt" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaDt||''}" onkeydown="iatfEnter(event,'nav-emb-saidadt')" onchange="editEmbriao('${e.id}','saidaDt',this.value,this)"></td>
+  <td class="cell-saida-total" style="background:#fffaf2;text-align:center;font-weight:700;color:#8a5919">${e.saidaTotal}</td>
+  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoFresco}</td>
+  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoVit}</td>
+  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoDt}</td>
+  <td class="cell-saldo-total" style="background:#faf8ff;text-align:center;font-weight:700;color:${e.saldoTotal<0?'#a84d2b':'#245f40'}">${e.saldoTotal}</td>
   <td><button class="mini" onclick="deleteEmbriao('${e.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
 }
 function editEmbriao(id,key,val,el){
   const e=(db.embrioes||[]).find(x=>x.id===id);if(!e)return;
-  if(key==='rgd'){e.rgd=String(val||'').trim();}
-  else{const n=Number(String(val).replace(',','.'));e[key]=Number.isFinite(n)?n:0;}
+  if(key==='rgd'){e.rgd=String(val||'').trim();save();return}
+  const n=Number(String(val).replace(',','.'));
+  e[key]=Number.isFinite(n)?Math.max(0,n):0;
   save();
-  const tr=el.closest('tr');
-  if(tr){
-    const tds=tr.querySelectorAll('td');
-    tds[4].textContent=embEstoqueCentral(e);
-    const ef=embEstoqueFazenda(e);
-    tds[7].textContent=ef; tds[7].style.color = ef<0 ? '#a84d2b' : '#245f40';
-  }
+  const tr=el.closest('tr');if(!tr)return;
+  const calc=embRowCalc(e);
+  const ce=tr.querySelector('.cell-est-total');if(ce)ce.textContent=calc.estTotal;
+  const cs=tr.querySelector('.cell-saida-total');if(cs)cs.textContent=calc.saidaTotal;
+  const csa=tr.querySelector('.cell-saldo-total');
+  if(csa){csa.textContent=calc.saldoTotal;csa.style.color=calc.saldoTotal<0?'#a84d2b':'#245f40'}
 } window.editEmbriao=editEmbriao;
 function deleteEmbriao(id){
   if(!confirm('Excluir esta linha de embriões?'))return;
@@ -1423,11 +1467,16 @@ function exportEmbrioes(){
   if(!needXLSX())return;
   const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra exportar.');
-  const out=rows.map(e=>({RGD:e.rgd,FRESCO:e.fresco||0,VIT:e.vit||0,DT:e.dt||0,ESTOQUE_CENTRAL:e.estoqueCentral,QTD_SAIDA:e.saida||0,USADOS_FAZENDA:e.usadosFazenda||0,ESTOQUE_FAZENDA:e.estoqueFazenda}));
+  const out=rows.map(e=>({
+    RGD:e.rgd,
+    ESTOQUE_FRESCO:e.estFresco||0,ESTOQUE_VIT:e.estVit||0,ESTOQUE_DT:e.estDt||0,ESTOQUE_TOTAL:e.estTotal,
+    SAIDA_FRESCO:e.saidaFresco||0,SAIDA_VIT:e.saidaVit||0,SAIDA_DT:e.saidaDt||0,SAIDA_TOTAL:e.saidaTotal,
+    USADOS_FRESCO:e.usoFresco,USADOS_VIT:e.usoVit,USADOS_DT:e.usoDt,SALDO_TOTAL:e.saldoTotal
+  }));
   jsonToXlsx(out,'embrioes.xlsx','Embrioes');
 } window.exportEmbrioes=exportEmbrioes;
 
-/* FIV — RGD Doadora puxa da lista já cadastrada em Embriões */
+/* FIV — RGD Doadora puxa da lista já cadastrada em Embriões; Tipo alimenta os Usados de lá */
 function embDoadoraDatalist(){
   const list=[...new Set((db.embrioes||[]).map(e=>e.rgd).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}));
   return `<datalist id="embDoadoraList">${list.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist>`;
@@ -1439,23 +1488,23 @@ function fivRowsFiltered(){
   return rows;
 }
 function fivPage(){
-  title('FIV','Transferência de embriões — RGD Doadora vem da lista já cadastrada em Embriões.');
+  title('FIV','Transferência de embriões — RGD Doadora vem de Embriões; o Tipo alimenta o Usados de lá sozinho.');
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}${embDoadoraDatalist()}<datalist id="fivResultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
-  <div class="animals-page">
+  <div class="fiv-page">
   <div class="toolbar">
     <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button></div>
   </div>
-  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). 1º Acasalamento puxa do Estoque de sêmen.</div>
+  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). 1º Acasalamento puxa do Estoque de sêmen. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
 }
 function addBlankFiv(){
   db.fiv=db.fiv||[];
-  db.fiv.unshift({id:uid('fiv'),rgdDoadora:'',sire:'',receptora:'',abcz:'',resultado:''});
+  db.fiv.unshift({id:uid('fiv'),rgdDoadora:'',sire:'',receptora:'',abcz:'',tipo:'',resultado:''});
   save();fivPage();
 } window.addBlankFiv=addBlankFiv;
 function renderFivTable(){
@@ -1463,12 +1512,13 @@ function renderFivTable(){
   const __view=captureViewPosition();
   const rows=fivRowsFiltered();
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
+  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
   </thead><tbody>${rows.map(r=>`<tr>
   <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-sire" list="bullsList" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-recept" style="min-width:110px" value="${esc(r.receptora||'')}" onkeydown="iatfEnter(event,'nav-fiv-recept')" onchange="editFiv('${r.id}','receptora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-abcz" style="min-width:110px" value="${esc(r.abcz||'')}" onkeydown="iatfEnter(event,'nav-fiv-abcz')" onchange="editFiv('${r.id}','abcz',this.value,this)"></td>
+  <td><select class="cell-input nav-fiv-tipo" style="min-width:90px" onkeydown="iatfEnter(event,'nav-fiv-tipo')" onchange="editFiv('${r.id}','tipo',this.value,this)"><option value="">—</option><option ${r.tipo==='Fresco'?'selected':''}>Fresco</option><option ${r.tipo==='VIT'?'selected':''}>VIT</option><option ${r.tipo==='DT'?'selected':''}>DT</option></select></td>
   <td><input class="cell-input nav-fiv-res" list="fivResultList" maxlength="3" style="width:70px;text-align:center" value="${esc(r.resultado||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-fiv-res')" onchange="editFiv('${r.id}','resultado',this.value,this)"></td>
   <td><button class="mini" onclick="deleteFiv('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
@@ -1494,7 +1544,7 @@ function exportFiv(){
   if(!needXLSX())return;
   const rows=fivRowsFiltered().filter(r=>String(r.rgdDoadora||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra exportar.');
-  const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',RESULTADO:r.resultado||''}));
+  const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',TIPO:r.tipo||'',RESULTADO:r.resultado||''}));
   jsonToXlsx(out,'fiv.xlsx','FIV');
 } window.exportFiv=exportFiv;
 
