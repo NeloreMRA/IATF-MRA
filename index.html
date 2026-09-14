@@ -130,9 +130,10 @@ body.authenticated #loginScreen{display:none}
   <nav>
     <button data-page="dashboard" class="nav active">▦ <span>Dashboard</span></button>
     <button data-page="animals" class="nav">◉ <span>Matrizes</span></button>
-    <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
+    <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
     <button data-page="iatf" class="nav">✓ <span>IATF</span></button>
     <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
+    <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
   <div class="side-season"><label>Estação</label><select id="seasonHeader"></select></div>
@@ -170,7 +171,8 @@ let animalSort={key:'rgd',dir:1},iatfSort={key:'rgd',dir:1},stockSort={key:'sald
 let animalFilters={rgd:'',firstSire:'',category:'',status:''};
 let iatfFilters={rgd:'',firstSire:'',qty:'',result:'',category:'',cycle:1};
 let stockFilters={name:'',rgdTouro:'',tank:'',caneca:'',saldo:''};
-let excelFilters={animals:{},iatf:{},stock:{}};
+let excelFilters={animals:{},iatf:{},stock:{},acasal:{}};
+let acasalSort={key:'rgd',dir:1};
 let excelFilterContext=null;
 
 const $=s=>document.querySelector(s);
@@ -192,6 +194,8 @@ function migrate(x){
   x.iatfMaxCycles=x.iatfMaxCycles||{};
   x.animals=x.animals||[];x.semen=x.semen||[];x.iatf=x.iatf||[];
   x.deletedAnimals=x.deletedAnimals||[];
+  x.acasalamentos=x.acasalamentos||[];
+  x.acasalamentos.forEach(a=>{if(!a.createdAt)a.createdAt='2026-08-30'});
   x.iatfExcluded=x.iatfExcluded||[];
   x.animals.forEach(a=>{a.active=true;if(!a.seasonId)a.seasonId=x.meta.activeSeasonId;if(!a.createdAt)a.createdAt='2026-08-30'});
   (x.deletedAnimals||[]).forEach(d=>{if(d.animal&&!d.animal.seasonId)d.animal.seasonId=x.meta.activeSeasonId});
@@ -498,6 +502,7 @@ function render(){
   renderSeasonSelector();
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
+  else if(page==='acasal')acasalPage();
   else if(page==='deleted')deletedAnimalsPage();
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
@@ -512,6 +517,7 @@ function rawRowsForExcel(kind){
   if(kind==='animals')return seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)}));
   if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
+  if(kind==='acasal')return (db.acasalamentos||[]).slice();
   return []
 }
 function excelValue(row,key){const v=row?.[key];return v===null||v===undefined?'':String(v)}
@@ -519,6 +525,7 @@ function excelDisplay(kind,key,v){
   if(kind==='animals'&&key==='status')return v==='P'?'Prenha':v==='V'?'Vazia':v==='M'?'Matar':v===''?'Sem resultado':v;
   if(kind==='animals'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
   if(kind==='animals'&&key==='curCycle')return v===''?'(Sem IATF)':v+'ª IATF';
+  if(kind==='acasal'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
   if(kind==='iatf'&&key==='result')return v===''?'(Vazio)':v;
   if(v==='')return '(Vazios)';return v
 }
@@ -558,9 +565,9 @@ function excelSearchEnter(e){
   excelFilterContext.selected=new Set(matches);
   excelApply();
 } window.excelSearchEnter=excelSearchEnter;
-function excelApply(){if(!excelFilterContext)return;const {kind,key,values,selected}=excelFilterContext;if(selected.size===values.length)delete excelFilters[kind][key];else excelFilters[kind][key]=[...selected];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():renderStock()} window.excelApply=excelApply;
-function excelClear(){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;delete excelFilters[kind][key];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():renderStock()} window.excelClear=excelClear;
-function excelSort(dir){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;if(kind==='animals')animalSort={key,dir};else if(kind==='iatf')iatfSort={key,dir};else stockSort={key,dir};closeExcelFilter();kind==='animals'?renderAnimalTable():kind==='iatf'?renderIatfRows():renderStock()} window.excelSort=excelSort;
+function excelApply(){if(!excelFilterContext)return;const {kind,key,values,selected}=excelFilterContext;if(selected.size===values.length)delete excelFilters[kind][key];else excelFilters[kind][key]=[...selected];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():k==='acasal'?renderAcasalTable():renderStock()} window.excelApply=excelApply;
+function excelClear(){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;delete excelFilters[kind][key];const k=kind;closeExcelFilter();k==='animals'?renderAnimalTable():k==='iatf'?renderIatfRows():k==='acasal'?renderAcasalTable():renderStock()} window.excelClear=excelClear;
+function excelSort(dir){if(!excelFilterContext)return;const {kind,key}=excelFilterContext;if(kind==='animals')animalSort={key,dir};else if(kind==='iatf')iatfSort={key,dir};else if(kind==='acasal')acasalSort={key,dir};else stockSort={key,dir};closeExcelFilter();kind==='animals'?renderAnimalTable():kind==='iatf'?renderIatfRows():kind==='acasal'?renderAcasalTable():renderStock()} window.excelSort=excelSort;
 document.addEventListener('click',e=>{const p=$('#excelFilterPopup');if(p&&!p.contains(e.target)&&!e.target.closest('.excel-filter-btn'))closeExcelFilter()});
 
 /* DASHBOARD */
@@ -652,22 +659,23 @@ function matrizCurrentCycle(rgd){
 function setAnimalIatfCycle(id,val,el){
   const a=db.animals.find(x=>x.id===id);if(!a)return;
   val=String(val||'').trim();
-  const atual=matrizCurrentCycle(a.rgd);
   if(!val){
-    if(atual===''){el.value='';return} // já não tava em nenhuma, não tem o que apagar
-    if(!confirm(`Remover ${a.rgd} da ${atual}ª IATF? Ela vai pra "Excluídas desta IATF" (dá pra recuperar lá).`)){el.value=atual;return}
-    const r=db.iatf.find(x=>x.seasonId===a.seasonId&&norm(x.rgd)===norm(a.rgd)&&Number(x.cycle)===Number(atual));
-    if(r){
-      db.iatfExcluded=db.iatfExcluded||[];
-      if(!db.iatfExcluded.some(x=>x.seasonId===r.seasonId&&Number(x.cycle)===Number(r.cycle)&&x.rgd===r.rgd)){
-        db.iatfExcluded.unshift({id:uid('ix'),seasonId:r.seasonId,cycle:Number(r.cycle),rgd:r.rgd,category:r.category,excludedAt:new Date().toISOString()});
-      }
-      db.iatf=db.iatf.filter(x=>x.id!==r.id);
-      save();
-    }
-    el.value='';
+    // Limpar o campo agora remove de UMA VEZ todas as linhas vazias (sem qtd/resultado/retorno/2º
+    // acasalamento) dessa matriz na estação — antes só tirava a IATF mais alta, então se ela tinha
+    // várias linhas vazias por engano (ex: 3, 5, 22) você tinha que limpar uma de cada vez até sobrar
+    // só a de verdade. Linha com QUALQUER dado preenchido nunca é apagada aqui, sempre fica intacta.
+    const todas=db.iatf.filter(r=>r.seasonId===a.seasonId&&norm(r.rgd)===norm(a.rgd));
+    const vazias=todas.filter(r=>!Number(r.qty)&&!normResult(r.result)&&!String(r.return||'').trim()&&!String(r.secondSire||'').trim());
+    if(!vazias.length){el.value=matrizCurrentCycle(a.rgd);return}
+    const ciclos=vazias.map(r=>Number(r.cycle)).sort((x,y)=>x-y).join(', ');
+    if(!confirm(`Remover ${a.rgd} da(s) IATF ${ciclos} (vazia(s), sem nenhum dado lançado)? Lançamentos com dados preenchidos não são mexidos.`)){el.value=matrizCurrentCycle(a.rgd);return}
+    const idsVazias=new Set(vazias.map(r=>r.id));
+    db.iatf=db.iatf.filter(r=>!idsVazias.has(r.id));
+    save();
+    el.value=matrizCurrentCycle(a.rgd);
     return;
   }
+  const atual=matrizCurrentCycle(a.rgd);
   const cy=Number(val);
   if(!Number.isFinite(cy)||cy<1||!Number.isInteger(cy)){alert('Informe um número de IATF válido (1, 2, 3...).');el.value=atual;return}
   if(!seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===cy)){
@@ -721,11 +729,11 @@ function renderAnimalTable(){
   </thead><tbody>${rows.map(a=>`<tr>
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input nav-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-rgd')" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
-  <td><input class="cell-input nav-sire" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onkeydown="iatfEnter(event,'nav-sire')" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
+  <td><input class="cell-input nav-sire" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onkeydown="iatfEnter(event,'nav-sire')" onfocus="this.select()" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
   <td><select class="cell-input category-select nav-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-cat')" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
-  <td><input class="cell-input" type="number" min="1" step="1" style="width:70px;text-align:center" value="${a.curCycle}" placeholder="—" title="Número da IATF em que essa matriz está. Vazio = ainda não está em nenhuma." onchange="setAnimalIatfCycle('${a.id}',this.value,this)"></td>
-  <td style="white-space:nowrap"><input class="cell-input" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onchange="editAnimalCell('${a.id}','createdAt',this.value,this)"></td>
+  <td><input class="cell-input nav-cycle" type="number" min="1" step="1" style="width:70px;text-align:center" value="${a.curCycle}" placeholder="—" title="Número da IATF em que essa matriz está. Vazio = ainda não está em nenhuma." onkeydown="iatfEnter(event,'nav-cycle')" onchange="setAnimalIatfCycle('${a.id}',this.value,this)"></td>
+  <td style="white-space:nowrap"><input class="cell-input nav-created" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onkeydown="iatfEnter(event,'nav-created')" onchange="editAnimalCell('${a.id}','createdAt',this.value,this)"></td>
   <td><button class="mini" onclick="deleteAnimal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
 }
@@ -872,7 +880,6 @@ function toggleIatfCategory(cat,checked){
 function selectIatfCycle(v){iatfCycle=Number(v);iatfCategory='';iatfPage()} window.selectIatfCycle=selectIatfCycle;
 function iatfPage(){
   title('IATF','Lançamentos da '+activeSeason().name);setActions('');
-  const cats=getIatfCycleCategories(iatfCycle);
   $('#content').innerHTML=`
   ${bullDatalist()}${animalDatalist()}<datalist id="resultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="iatf-page">
@@ -883,19 +890,12 @@ function iatfPage(){
     </div>
     <div class="out-actions"><button class="ghost" onclick="openIatfOutput('export')">⬇ Excel</button><button class="ghost" onclick="openIatfOutput('print')">🖨 Imprimir</button></div>
   </div>
-  <div class="toolbar" style="margin-bottom:9px">
-    <div class="iatf-category-box"><span>Categorias:</span>
-      <label class="iatf-cat-check vacas"><input type="checkbox" ${cats.includes('Vacas')?'checked':''} onchange="toggleIatfCategory('Vacas',this.checked)"> Vacas</label>
-      <label class="iatf-cat-check primi"><input type="checkbox" ${cats.includes('Primíparas')?'checked':''} onchange="toggleIatfCategory('Primíparas',this.checked)"> Primíparas</label>
-      <label class="iatf-cat-check preco"><input type="checkbox" ${cats.includes('Precocinha')?'checked':''} onchange="toggleIatfCategory('Precocinha',this.checked)"> Precocinhas</label>
-    </div>
-  </div>
   <div class="toolbar">
     <div class="filters">
-      <button class="ghost" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
+      <button class="primary" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
     </div>
   </div>
-  <div class="notice green"><strong>Categorias da ${iatfCycle}ª IATF:</strong> marca aqui pra adicionar de uma vez TODAS as matrizes elegíveis daquela categoria (Vazias/Sem resultado). Isso só roda no momento em que você marca a caixinha — matriz nova cadastrada depois não entra sozinha. Pra escolher matrizes específicas numa lista com busca, use <strong>"+ Matriz(es) nesta IATF"</strong>; pra colocar uma de cada vez direto, a coluna <strong>"IATF atual"</strong> em Matrizes.</div>
+  <div class="notice green">Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em <strong>"+ Matriz(es) nesta IATF"</strong>, filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.</div>
   <div id="iatfTable"></div>
   </div>`;
   renderIatfRows()
@@ -915,7 +915,7 @@ function renderIatfRows(){
   <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
-  <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onchange="updateIatfSire(this)"></td>
+  <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onfocus="this.select()" onchange="updateIatfSire(this)"></td>
 <td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
 <td><input class="cell-input iatf-caneca" type="text" value="" readonly></td>
 <td><input class="cell-input nav-qtd iatf-qty" inputmode="decimal" data-id="${r.id}" value="${r.qty||''}" onkeydown="iatfEnter(event,'nav-qtd')" onchange="updateIatfCell('${r.id}','qty',this.value)"></td>
@@ -951,13 +951,16 @@ function removeEmptyFollowUps(r){
 }
 function updateIatfResult(id,val,el){
   val=normResult(val);
-  if(el.value.trim() && !val){alert('Resultado deve ser P, V ou PRT.');el.value='';}
+  if(el.value.trim() && !val){alert('Resultado deve ser P, V ou PRT.');el.value='';return}
   const r=db.iatf.find(x=>x.id===id);if(!r)return;
   r.result=val; el.value=val;
   // Na nova lógica, nenhuma matriz é lançada automaticamente na próxima IATF.
-  // A próxima IATF é montada quando você escolhe IATF + data + categoria.
+  const before=db.iatf.length;
   if(val!=='V')removeEmptyFollowUps(r);
-  save();renderIatfRows()
+  save();
+  // Só reconstrói a tabela inteira se alguma linha realmente sumiu — do contrário isso quebrava
+  // o foco no meio da digitação (você apertava Enter e "voltava" pra célula errada).
+  if(db.iatf.length!==before)renderIatfRows();
 } window.updateIatfResult=updateIatfResult;
 
 /* PAINEL DE PRTs — devolver manualmente para uma IATF */
@@ -997,26 +1000,46 @@ function returnPrts(){
 } window.returnPrts=returnPrts;
 function quickAddAnimalToCycle(){
   const jaNaIatf=new Set(seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).map(r=>r.rgd));
-  const disponiveis=seasonAnimals().filter(a=>!jaNaIatf.has(a.rgd)).sort((a,b)=>a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}));
+  const disponiveis=seasonAnimals().filter(a=>!jaNaIatf.has(a.rgd)).map(a=>({...a,status:latestStatus(a.rgd)})).sort((a,b)=>a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}));
   if(!disponiveis.length)return alert('Todas as matrizes cadastradas já estão nesta IATF.');
-  const porCat=['Vacas','Primíparas','Precocinha'].map(cat=>{
-    const l=disponiveis.filter(a=>a.category===cat);
-    if(!l.length)return '';
-    return `<div style="margin-bottom:14px"><div class="sub" style="font-weight:700;margin-bottom:6px"><span class="badge ${catClass(cat)}">${cat}</span> — ${l.length}</div>
-    ${l.map(a=>{const st=latestStatus(a.rgd);return `<label class="excel-value qa-row" data-search="${esc(norm(a.rgd)).toLowerCase()}" style="padding:6px 2px;border-bottom:1px solid #edf0ee"><input type="checkbox" class="qa-pick" value="${esc(a.rgd)}"><span><strong>${esc(a.rgd)}</strong> <span class="badge ${resClass(st)}" style="margin-left:6px">${statusLabel(st)}</span></span></label>`}).join('')}</div>`
-  }).join('');
+  const linhas=disponiveis.map(a=>`<label class="excel-value qa-row" data-cat="${esc(a.category)}" data-status="${a.status}" data-search="${esc(norm(a.rgd)).toLowerCase()}" style="padding:6px 2px;border-bottom:1px solid #edf0ee"><input type="checkbox" class="qa-pick" value="${esc(a.rgd)}"><span><strong>${esc(a.rgd)}</strong> <span class="badge ${catClass(a.category)}" style="margin-left:6px">${esc(a.category)}</span> <span class="badge ${resClass(a.status)}" style="margin-left:4px">${statusLabel(a.status)}</span></span></label>`).join('');
   openModal(`<h2>Adicionar na ${iatfCycle}ª IATF</h2>
-  <div class="notice green">Só aparecem aqui as matrizes que ainda <strong>não</strong> estão nesta IATF. Marque as que quiser e adicione todas de uma vez.</div>
-  <input class="input" style="width:100%;margin-bottom:10px" id="qaSearch" placeholder="Buscar por RGD..." oninput="qaFilter(this.value)">
-  <div class="quick-add" style="margin-bottom:10px"><button class="ghost" type="button" onclick="qaSelectAll(true)">Marcar visíveis</button><button class="ghost" type="button" onclick="qaSelectAll(false)">Desmarcar tudo</button></div>
-  <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px;padding:10px" id="qaList">${porCat}</div>
+  <div class="notice green">Só aparecem aqui as matrizes que ainda <strong>não</strong> estão nesta IATF. Filtra por categoria e situação, depois marca quem entra.</div>
+  <div class="form-grid" style="margin-bottom:10px">
+    <div class="field"><label>Categoria</label>
+      <div class="quick-add">
+        <label class="iatf-cat-check vacas"><input type="checkbox" class="qa-cat" value="Vacas" checked onchange="qaApplyFilters()"> Vacas</label>
+        <label class="iatf-cat-check primi"><input type="checkbox" class="qa-cat" value="Primíparas" checked onchange="qaApplyFilters()"> Primíparas</label>
+        <label class="iatf-cat-check preco"><input type="checkbox" class="qa-cat" value="Precocinha" checked onchange="qaApplyFilters()"> Precocinha</label>
+      </div>
+    </div>
+    <div class="field"><label>Situação</label>
+      <div class="quick-add">
+        <label class="iatf-cat-check" style="background:#eff2f0;color:#667068"><input type="checkbox" class="qa-status" value="" checked onchange="qaApplyFilters()"> Sem resultado</label>
+        <label class="iatf-cat-check" style="background:#fff1dc;color:#875716"><input type="checkbox" class="qa-status" value="V" checked onchange="qaApplyFilters()"> Vazia</label>
+        <label class="iatf-cat-check" style="background:#fde7e5;color:#9b3127"><input type="checkbox" class="qa-status" value="PRT" onchange="qaApplyFilters()"> PRT</label>
+        <label class="iatf-cat-check" style="background:#e5f5eb;color:#216440"><input type="checkbox" class="qa-status" value="P" onchange="qaApplyFilters()"> Prenha</label>
+      </div>
+    </div>
+  </div>
+  <input class="input" style="width:100%;margin-bottom:10px" id="qaSearch" placeholder="Buscar por RGD..." oninput="qaApplyFilters()">
+  <div class="quick-add" style="margin-bottom:10px"><button class="ghost" type="button" onclick="qaSelectAll(true)">Marcar visíveis</button><button class="ghost" type="button" onclick="qaSelectAll(false)">Desmarcar tudo</button><span class="muted" id="qaCount" style="margin-left:auto;align-self:center"></span></div>
+  <div style="max-height:340px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px;padding:10px" id="qaList">${linhas}</div>
   <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveQuickAnimal()">Adicionar selecionadas</button></div>`);
-  setTimeout(()=>{const el=$('#qaSearch');if(el)el.focus()},60)
+  setTimeout(()=>{qaApplyFilters();const el=$('#qaSearch');if(el)el.focus()},60)
 } window.quickAddAnimalToCycle=quickAddAnimalToCycle;
-function qaFilter(q){
-  q=norm(q).toLowerCase();
-  $$('.qa-row').forEach(x=>x.classList.toggle('hidden',!!q&&!x.dataset.search.includes(q)))
-} window.qaFilter=qaFilter;
+function qaApplyFilters(){
+  const cats=new Set($$('.qa-cat:checked').map(x=>x.value));
+  const stats=new Set($$('.qa-status:checked').map(x=>x.value));
+  const q=norm(($('#qaSearch')||{value:''}).value).toLowerCase();
+  let visiveis=0;
+  $$('.qa-row').forEach(x=>{
+    const ok=cats.has(x.dataset.cat)&&stats.has(x.dataset.status)&&(!q||x.dataset.search.includes(q));
+    x.classList.toggle('hidden',!ok);
+    if(ok)visiveis++;
+  });
+  const c=$('#qaCount');if(c)c.textContent=`${visiveis} matriz(es) visível(is)`;
+} window.qaApplyFilters=qaApplyFilters;
 function qaSelectAll(on){
   $$('#qaList .qa-row:not(.hidden) .qa-pick').forEach(x=>x.checked=on)
 } window.qaSelectAll=qaSelectAll;
@@ -1082,6 +1105,72 @@ function outputIatfRows(){
   return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||a.category.localeCompare(b.category)||a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}))
 }
 function runIatfOutput(mode){const rows=outputIatfRows();if(!rows.length)return alert('Nenhum registro para esta seleção.');if(mode==='export')exportIatfRows(rows);else printIatfRows(rows);closeModal()} window.runIatfOutput=runIatfOutput;
+
+/* ACASALAMENTOS — planejamento independente, não mexe em Matrizes nem IATF */
+const ACASAL_COLS=[['iatf1','1º IATF'],['iatf2','2º IATF'],['iatf3','3º IATF'],['iatf4','4º IATF'],['fiv1','1º FIV'],['fiv2','2º FIV']];
+function acasalRowsFiltered(){
+  let rows=(db.acasalamentos||[]).filter(a=>excelPass('acasal',a));
+  const k=acasalSort.key,d=acasalSort.dir;
+  rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
+  return rows;
+}
+function acasalPage(){
+  title('Acasalamentos','Planejamento de touros por IATF/FIV — independente das abas Matrizes e IATF.');
+  setActions('');
+  $('#content').innerHTML=`
+  ${bullDatalist()}
+  <div class="animals-page">
+  <div class="toolbar">
+    <div class="quick-add"><button class="primary" onclick="addBlankAcasal()">+ Linha em branco</button></div>
+    <div class="out-actions"><button class="ghost" onclick="exportAcasalToMatrizesTemplate()">⬇ Excel pra subir em Matrizes</button></div>
+  </div>
+  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). Quando quiser, baixa o Excel: ele usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. O botão respeita os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.</div>
+  <div id="acasalTable"></div>
+  </div>`;
+  renderAcasalTable();
+}
+function addBlankAcasal(){
+  db.acasalamentos=db.acasalamentos||[];
+  db.acasalamentos.unshift({id:uid('ac'),rgd:'',category:'',iatf1:'',iatf2:'',iatf3:'',iatf4:'',fiv1:'',fiv2:'',createdAt:todayISO()});
+  save();acasalPage();
+} window.addBlankAcasal=addBlankAcasal;
+function renderAcasalTable(){
+  const root=$('#acasalTable');if(!root)return;
+  const __view=captureViewPosition();
+  const rows=acasalRowsFiltered();
+  const total=(db.acasalamentos||[]).length;
+  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong></div><div class="table-wrap"><table><thead>
+  <tr><th>${excelHead('acasal','rgd','RGD')}</th><th>${excelHead('acasal','category','Categoria')}</th>${ACASAL_COLS.map(([k,l])=>`<th>${excelHead('acasal',k,l)}</th>`).join('')}<th>${excelHead('acasal','createdAt','Criada em')}</th><th></th></tr>
+  </thead><tbody>${rows.map(a=>`<tr>
+  <td><input class="cell-input nav-a-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-a-rgd')" onchange="editAcasalCell('${a.id}','rgd',this.value,this)"></td>
+  <td><select class="cell-input category-select nav-a-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-a-cat')" onchange="editAcasalCell('${a.id}','category',this.value,this)"><option value="">—</option>${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  ${ACASAL_COLS.map(([k])=>`<td><input class="cell-input nav-a-${k}" list="bullsList" style="min-width:190px" value="${esc(a[k]||'')}" onkeydown="iatfEnter(event,'nav-a-${k}')" onfocus="this.select()" onchange="editAcasalCell('${a.id}','${k}',this.value,this)"></td>`).join('')}
+  <td style="white-space:nowrap"><input class="cell-input nav-a-created" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onkeydown="iatfEnter(event,'nav-a-created')" onchange="editAcasalCell('${a.id}','createdAt',this.value,this)"></td>
+  <td><button class="mini" onclick="deleteAcasal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  restoreViewPosition(__view);
+}
+function editAcasalCell(id,key,val,el){
+  const a=(db.acasalamentos||[]).find(x=>x.id===id);if(!a)return;
+  val=String(val||'').trim();
+  if(ACASAL_COLS.some(c=>c[0]===key) && val && !sireExists(val)){
+    alert(`O touro "${val}" não existe no Estoque. Cadastre em Estoque primeiro.`);el.value=a[key]||'';return;
+  }
+  a[key]=val;
+  if(key==='category'&&el){el.classList.remove('cat-vacas','cat-primi','cat-preco');if(val)el.classList.add(catClass(val));}
+  save();
+} window.editAcasalCell=editAcasalCell;
+function deleteAcasal(id){
+  if(!confirm('Excluir esta linha de acasalamento?'))return;
+  db.acasalamentos=(db.acasalamentos||[]).filter(x=>x.id!==id);
+  save();acasalPage();
+} window.deleteAcasal=deleteAcasal;
+function exportAcasalToMatrizesTemplate(){
+  if(!needXLSX())return;
+  const rows=acasalRowsFiltered().filter(a=>String(a.rgd||'').trim());
+  if(!rows.length)return alert('Nenhuma linha com RGD pra exportar (confira os filtros da tabela).');
+  const out=rows.map(a=>({RGD:a.rgd,'1_ACASALAMENTO':a.iatf1||'',CATEGORIA:a.category||''}));
+  jsonToXlsx(out,'matrizes_para_subir.xlsx','IMPORTAR');
+} window.exportAcasalToMatrizesTemplate=exportAcasalToMatrizesTemplate;
 
 /* ESTOQUE */
 function stockRowsFiltered(){
