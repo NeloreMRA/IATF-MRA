@@ -130,9 +130,9 @@ body.authenticated #loginScreen{display:none}
   <nav>
     <button data-page="dashboard" class="nav active">▦ <span>Dashboard</span></button>
     <button data-page="animals" class="nav">◉ <span>Matrizes</span></button>
-    <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
     <button data-page="iatf" class="nav">✓ <span>IATF</span></button>
     <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
+    <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
     <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
@@ -151,6 +151,8 @@ body.authenticated #loginScreen{display:none}
 <input id="animalImportFile" type="file" accept=".xlsx,.xls" style="display:none">
 <input id="stockImportFile" type="file" accept=".xlsx,.xls" style="display:none">
 <input id="backupRestoreFile" type="file" accept=".json" style="display:none">
+<input id="acasalImportFile" type="file" accept=".xlsx,.xls" style="display:none">
+<input id="naoUtilImportFile" type="file" accept=".xlsx,.xls" style="display:none">
 <script>
 const DEFAULT_DB={"animals":[],"semen":[],"iatf":[],"meta":{"activeSeasonId":"season-2026-27"},"seasons":[{"id":"season-2026-27","name":"Estação 2026/27","startDate":"2026-07-01","endDate":"2027-06-30","active":true}],"settings":{"bullMinUses":5,"bullPriorStrength":5,"lowStock":3}};
 const STORE='iatf-mra-v6-firebase';
@@ -196,6 +198,7 @@ function migrate(x){
   x.deletedAnimals=x.deletedAnimals||[];
   x.acasalamentos=x.acasalamentos||[];
   x.acasalamentos.forEach(a=>{if(!a.createdAt)a.createdAt='2026-08-30'});
+  x.naoUtilizadas=x.naoUtilizadas||[];
   x.iatfExcluded=x.iatfExcluded||[];
   x.animals.forEach(a=>{a.active=true;if(!a.seasonId)a.seasonId=x.meta.activeSeasonId;if(!a.createdAt)a.createdAt='2026-08-30'});
   (x.deletedAnimals||[]).forEach(d=>{if(d.animal&&!d.animal.seasonId)d.animal.seasonId=x.meta.activeSeasonId});
@@ -461,6 +464,8 @@ function bind(){
   $('#animalImportFile').onchange=e=>{importAnimalsExcel(e.target.files[0]);e.target.value=''};
   $('#stockImportFile').onchange=e=>{importStockExcel(e.target.files[0]);e.target.value=''};
   $('#backupRestoreFile').onchange=e=>{restoreFullBackup(e.target.files[0]);e.target.value=''};
+  $('#acasalImportFile').onchange=e=>{importAcasalExcel(e.target.files[0]);e.target.value=''};
+  $('#naoUtilImportFile').onchange=e=>{importNaoUtilizadasExcel(e.target.files[0]);e.target.value=''};
   document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&String(e.key).toLowerCase()==='z'){
       e.preventDefault();
@@ -1121,10 +1126,17 @@ function acasalPage(){
   ${bullDatalist()}
   <div class="animals-page">
   <div class="toolbar">
-    <div class="quick-add"><button class="primary" onclick="addBlankAcasal()">+ Linha em branco</button></div>
-    <div class="out-actions"><button class="ghost" onclick="exportAcasalToMatrizesTemplate()">⬇ Excel pra subir em Matrizes</button></div>
+    <div class="quick-add">
+      <button class="primary" onclick="addBlankAcasal()">+ Linha em branco</button>
+      <button class="ghost" onclick="document.getElementById('acasalImportFile').click()">⬆ Subir Excel</button>
+      <button class="danger-btn" onclick="openNaoUtilizadasPanel()">🗂 Não utilizadas (${(db.naoUtilizadas||[]).length})</button>
+    </div>
+    <div class="out-actions">
+      <button class="ghost" onclick="exportAcasalFull()">⬇ Baixar Acasalamentos (Excel)</button>
+      <button onclick="exportAcasalToMatrizesTemplate()" style="border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:#e7b549;color:#153e2c;font-weight:700">⬇ Excel pra subir em Matrizes</button>
+    </div>
   </div>
-  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). Quando quiser, baixa o Excel: ele usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. O botão respeita os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.</div>
+  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.</div>
   <div id="acasalTable"></div>
   </div>`;
   renderAcasalTable();
@@ -1171,6 +1183,132 @@ function exportAcasalToMatrizesTemplate(){
   const out=rows.map(a=>({RGD:a.rgd,'1_ACASALAMENTO':a.iatf1||'',CATEGORIA:a.category||''}));
   jsonToXlsx(out,'matrizes_para_subir.xlsx','IMPORTAR');
 } window.exportAcasalToMatrizesTemplate=exportAcasalToMatrizesTemplate;
+function exportAcasalFull(){
+  if(!needXLSX())return;
+  const rows=acasalRowsFiltered().filter(a=>String(a.rgd||'').trim());
+  if(!rows.length)return alert('Nenhuma linha com RGD pra exportar (confira os filtros da tabela).');
+  const out=rows.map(a=>({RGD:a.rgd,CATEGORIA:a.category||'','1_IATF':a.iatf1||'','2_IATF':a.iatf2||'','3_IATF':a.iatf3||'','4_IATF':a.iatf4||'','1_FIV':a.fiv1||'','2_FIV':a.fiv2||'',CRIADA_EM:a.createdAt||''}));
+  jsonToXlsx(out,'acasalamentos.xlsx','Acasalamentos');
+} window.exportAcasalFull=exportAcasalFull;
+
+/* NÃO UTILIZADAS — mini-tabela dentro de um modal (RGD, categoria, destinação, motivo) */
+function openNaoUtilizadasPanel(){renderNaoUtilizadasModal()}
+window.openNaoUtilizadasPanel=openNaoUtilizadasPanel;
+function naoUtilizadaRowHTML(r){
+  return `<tr>
+  <td style="padding:4px"><input class="cell-input nav-nu-rgd" style="min-width:100px" value="${esc(r.rgd)}" onkeydown="iatfEnter(event,'nav-nu-rgd')" onchange="editNaoUtilizada('${r.id}','rgd',this.value,this)"></td>
+  <td style="padding:4px"><select class="cell-input category-select nav-nu-cat ${catClass(r.category)}" onkeydown="iatfEnter(event,'nav-nu-cat')" onchange="editNaoUtilizada('${r.id}','category',this.value,this)"><option value="">—</option>${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===r.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td style="padding:4px"><select class="cell-input nav-nu-dest" onkeydown="iatfEnter(event,'nav-nu-dest')" onchange="editNaoUtilizada('${r.id}','destino',this.value,this)"><option value="">—</option><option ${r.destino==='Abate'?'selected':''}>Abate</option><option ${r.destino==='Receptora'?'selected':''}>Receptora</option></select></td>
+  <td style="padding:4px"><input class="cell-input nav-nu-motivo" style="min-width:190px" value="${esc(r.motivo||'')}" onkeydown="iatfEnter(event,'nav-nu-motivo')" onchange="editNaoUtilizada('${r.id}','motivo',this.value,this)"></td>
+  <td style="padding:4px"><button class="mini" onclick="deleteNaoUtilizada('${r.id}')">Excluir</button></td></tr>`;
+}
+function renderNaoUtilizadasModal(){
+  const rows=db.naoUtilizadas||[];
+  openModal(`<h2>Matrizes não utilizadas no acasalamento</h2>
+  <div class="notice green">Banco de dados simples: RGD, categoria, destinação (Abate ou Receptora) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos.</div>
+  <div class="quick-add" style="margin-bottom:10px"><button class="primary" type="button" onclick="addBlankNaoUtilizada()">+ Linha em branco</button><button class="ghost" type="button" onclick="document.getElementById('naoUtilImportFile').click()">⬆ Subir Excel</button></div>
+  <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px">
+  <table style="width:100%;border-collapse:collapse;font-size:12px" id="nuTable">
+  <thead><tr style="background:#f8faf8"><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">RGD</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Categoria</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Destinação</th><th style="text-align:left;padding:6px;font-size:10px;text-transform:uppercase;color:#56625a">Motivo</th><th></th></tr></thead>
+  <tbody>${rows.map(naoUtilizadaRowHTML).join('')||'<tr><td colspan="5" style="padding:20px;text-align:center;color:#7b877e">Nenhuma ainda. Clica em "+ Linha em branco".</td></tr>'}</tbody>
+  </table></div>
+  <div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
+}
+function addBlankNaoUtilizada(){
+  db.naoUtilizadas=db.naoUtilizadas||[];
+  db.naoUtilizadas.unshift({id:uid('nu'),rgd:'',category:'',destino:'',motivo:'',createdAt:todayISO()});
+  save();renderNaoUtilizadasModal();
+} window.addBlankNaoUtilizada=addBlankNaoUtilizada;
+function editNaoUtilizada(id,key,val,el){
+  const r=(db.naoUtilizadas||[]).find(x=>x.id===id);if(!r)return;
+  val=String(val||'').trim();
+  r[key]=val;
+  if(key==='category'&&el){el.classList.remove('cat-vacas','cat-primi','cat-preco');if(val)el.classList.add(catClass(val));}
+  save();
+} window.editNaoUtilizada=editNaoUtilizada;
+function deleteNaoUtilizada(id){
+  db.naoUtilizadas=(db.naoUtilizadas||[]).filter(x=>x.id!==id);
+  save();renderNaoUtilizadasModal();
+} window.deleteNaoUtilizada=deleteNaoUtilizada;
+
+/* IMPORTAÇÃO — Acasalamentos e Não Utilizadas */
+function importAcasalExcel(file){
+  readExcel(file,rows=>{
+    if(!rows.length)return alert('O Excel não possui linhas para importar.');
+    const errs=[],prepared=[];
+    rows.forEach((r,i)=>{
+      const line=i+2;
+      const rgd=String(pick(r,['RGD'])||'').trim();
+      if(!rgd)return;
+      const cat=String(pick(r,['CATEGORIA'])||'').trim();
+      if(cat && !['Vacas','Primíparas','Precocinha'].includes(cat)){errs.push(`Linha ${line}: categoria "${cat}" inválida.`);return}
+      const vals={};
+      ACASAL_COLS.forEach(([k,label])=>{
+        const key=label.replace(/[ºª]/g,'').trim().replace(' ','_').toUpperCase(); // ex: "1º IATF" -> "1_IATF"
+        const v=String(pick(r,[key,label])||'').trim();
+        if(v && !sireExists(v)){errs.push(`Linha ${line}: touro "${v}" (${label}) não existe no Estoque.`);return}
+        vals[k]=v;
+      });
+      prepared.push({rgd,cat,...vals});
+    });
+    if(errs.length){showImportErrors('Importação com problemas',`Corrija ${errs.length} linha(s) e envie o Excel novamente. Nada foi importado.`,errs);return}
+    if(!prepared.length)return alert('Nenhum RGD encontrado no arquivo.');
+    let novos=0,atualizados=0;
+    db.acasalamentos=db.acasalamentos||[];
+    prepared.forEach(x=>{
+      const existing=db.acasalamentos.find(a=>norm(a.rgd)===norm(x.rgd));
+      if(existing){
+        if(x.cat)existing.category=x.cat;
+        ACASAL_COLS.forEach(([k])=>{if(x[k])existing[k]=x[k]});
+        atualizados++;
+      }else{
+        const novo={id:uid('ac'),rgd:x.rgd,category:x.cat||'',createdAt:todayISO()};
+        ACASAL_COLS.forEach(([k])=>{novo[k]=x[k]||''});
+        db.acasalamentos.push(novo);
+        novos++;
+      }
+    });
+    save();
+    alert(`${novos} linha(s) nova(s) e ${atualizados} atualizada(s) em Acasalamentos.`);
+    if(page==='acasal')acasalPage();
+  })
+} window.importAcasalExcel=importAcasalExcel;
+function importNaoUtilizadasExcel(file){
+  readExcel(file,rows=>{
+    if(!rows.length)return alert('O Excel não possui linhas para importar.');
+    const errs=[],prepared=[];
+    rows.forEach((r,i)=>{
+      const line=i+2;
+      const rgd=String(pick(r,['RGD'])||'').trim();
+      if(!rgd)return;
+      const cat=String(pick(r,['CATEGORIA'])||'').trim();
+      if(cat && !['Vacas','Primíparas','Precocinha'].includes(cat)){errs.push(`Linha ${line}: categoria "${cat}" inválida.`);return}
+      const dest=String(pick(r,['DESTINACAO','DESTINAÇÃO'])||'').trim();
+      if(dest && !['Abate','Receptora'].includes(dest)){errs.push(`Linha ${line}: destinação "${dest}" inválida (use Abate ou Receptora).`);return}
+      const motivo=String(pick(r,['MOTIVO'])||'').trim();
+      prepared.push({rgd,cat,dest,motivo});
+    });
+    if(errs.length){showImportErrors('Importação com problemas',`Corrija ${errs.length} linha(s) e envie o Excel novamente. Nada foi importado.`,errs);return}
+    if(!prepared.length)return alert('Nenhum RGD encontrado no arquivo.');
+    db.naoUtilizadas=db.naoUtilizadas||[];
+    let novos=0,atualizados=0;
+    prepared.forEach(x=>{
+      const existing=db.naoUtilizadas.find(a=>norm(a.rgd)===norm(x.rgd));
+      if(existing){
+        if(x.cat)existing.category=x.cat;
+        if(x.dest)existing.destino=x.dest;
+        if(x.motivo)existing.motivo=x.motivo;
+        atualizados++;
+      }else{
+        db.naoUtilizadas.push({id:uid('nu'),rgd:x.rgd,category:x.cat||'',destino:x.dest||'',motivo:x.motivo||'',createdAt:todayISO()});
+        novos++;
+      }
+    });
+    save();
+    alert(`${novos} linha(s) nova(s) e ${atualizados} atualizada(s) em Não Utilizadas.`);
+    renderNaoUtilizadasModal();
+  })
+} window.importNaoUtilizadasExcel=importNaoUtilizadasExcel;
 
 /* ESTOQUE */
 function stockRowsFiltered(){
