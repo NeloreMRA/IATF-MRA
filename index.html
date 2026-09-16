@@ -93,7 +93,8 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .animals-page table,.iatf-page table,.stock-page table{font-size:11px}
 .animals-page th,.iatf-page th,.stock-page th{padding:7px 7px;font-size:9.5px}
 .animals-page td,.iatf-page td,.stock-page td{padding:4px 6px}
-.animals-page .cell-input,.iatf-page .cell-input,.stock-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px}
+.animals-page .cell-input,.iatf-page .cell-input,.stock-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px;border:1px solid #d9dfda!important;background:#fff}
+.animals-page td,.iatf-page td,.stock-page td{border:1px solid #e3e7e4}
 .animals-page .notice,.iatf-page .notice,.stock-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
 .animals-page .toolbar,.iatf-page .toolbar,.stock-page .toolbar{margin-bottom:7px}
 .animals-page .cell-input[style*="min-width:110px"]{min-width:92px!important}
@@ -171,6 +172,7 @@ body.authenticated #loginScreen{display:none}
 <input id="backupRestoreFile" type="file" accept=".json" style="display:none">
 <input id="acasalImportFile" type="file" accept=".xlsx,.xls" style="display:none">
 <input id="naoUtilImportFile" type="file" accept=".xlsx,.xls" style="display:none">
+<input id="embrioesImportFile" type="file" accept=".xlsx,.xls" style="display:none">
 <script>
 const DEFAULT_DB={"animals":[],"semen":[],"iatf":[],"meta":{"activeSeasonId":"season-2026-27"},"seasons":[{"id":"season-2026-27","name":"Estação 2026/27","startDate":"2026-07-01","endDate":"2027-06-30","active":true}],"settings":{"bullMinUses":5,"bullPriorStrength":5,"lowStock":3}};
 const STORE='iatf-mra-v6-firebase';
@@ -359,11 +361,13 @@ function undoLastChange(){
   }finally{suppressUndoHistory=false;updateUndoButton()}
 }
 window.undoLastChange=undoLastChange;
+let lastLocalEditAt=0;
 function save(renderToo=false){
   registerUndoSnapshot();
   try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){console.warn('Cache local:',e)}
   if(renderToo)render();
   if(applyingRemote)return;
+  lastLocalEditAt=Date.now();
   localWritePending=true;
   setSyncStatus('saving','Salvando...');
   clearTimeout(syncTimer);
@@ -455,8 +459,11 @@ async function init(){
       const currentJSON=JSON.stringify(deepClone(db));
       if(incomingJSON===currentJSON){lastRemoteJSON=incomingJSON;setSyncStatus('ok','Sincronizado');return}
       // Enquanto há uma gravação local (inclusive Desfazer), ignora um snapshot remoto antigo
-      // para ele não apagar a alteração nem limpar o histórico.
-      if(localWritePending)return;
+      // para ele não apagar a alteração nem limpar o histórico. Também ignora nos 1.5s logo após
+      // qualquer edição local — evita que um "eco" do Firestore, chegando um pouquinho atrasado
+      // enquanto você ainda está digitando em outra célula, sobrescreva algo que você acabou de
+      // digitar e ainda não deu tempo de sincronizar (era uma causa provável de valor "sumindo").
+      if(localWritePending || (Date.now()-lastLocalEditAt)<1500)return;
       applyingRemote=true;
       db=incoming;
       lastRemoteJSON=incomingJSON;
@@ -488,6 +495,7 @@ function bind(){
   $('#backupRestoreFile').onchange=e=>{restoreFullBackup(e.target.files[0]);e.target.value=''};
   $('#acasalImportFile').onchange=e=>{importAcasalExcel(e.target.files[0]);e.target.value=''};
   $('#naoUtilImportFile').onchange=e=>{importNaoUtilizadasExcel(e.target.files[0]);e.target.value=''};
+  $('#embrioesImportFile').onchange=e=>{importEmbrioesExcel(e.target.files[0]);e.target.value=''};
   document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&String(e.key).toLowerCase()==='z'){
       e.preventDefault();
@@ -727,11 +735,24 @@ function setAnimalIatfCycle(id,val,el){
   const atual=matrizCurrentCycle(a.rgd);
   const cy=Number(val);
   if(!Number.isFinite(cy)||cy<1||!Number.isInteger(cy)){alert('Informe um número de IATF válido (1, 2, 3...).');el.value=atual;return}
+  // Antes de criar a nova, some sozinho com qualquer linha VAZIA que essa matriz tenha em OUTRO
+  // ciclo (ex: digitou 22 sem querer, queria 2 — a 22 fica vazia, "presa" e o campo não saía dela).
+  // Isso resolve numa edição só. Linha com QUALQUER dado preenchido nunca é tocada aqui.
+  const outrasVazias=db.iatf.filter(r=>r.seasonId===a.seasonId&&norm(r.rgd)===norm(a.rgd)&&Number(r.cycle)!==cy&&!Number(r.qty)&&!normResult(r.result)&&!String(r.return||'').trim()&&!String(r.secondSire||'').trim());
+  if(outrasVazias.length){
+    const idsVazias=new Set(outrasVazias.map(r=>r.id));
+    db.iatf=db.iatf.filter(r=>!idsVazias.has(r.id));
+  }
   if(!seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)===cy)){
     db.iatf.push({id:uid('i'),seasonId:a.seasonId,category:a.category,cycle:cy,rgd:a.rgd,firstSire:a.firstSire||'',secondSire:'',qty:0,result:'',return:''});
     save();
   }
-  el.value=cy;
+  const depois=matrizCurrentCycle(a.rgd);
+  if(Number(depois)!==cy){
+    // Ainda sobrou uma IATF maior com dado de verdade — não dá pra apagar sozinho, avisa por quê.
+    alert(`Criei a ${cy}ª IATF pra ${a.rgd}, mas o campo continua mostrando ${depois}ª porque essa já tem dado lançado (qtd/resultado/retorno) e não posso apagar sozinho. Se for engano, vá na aba IATF, ciclo ${depois}, e exclua a linha de lá.`);
+  }
+  el.value=depois;
 } window.setAnimalIatfCycle=setAnimalIatfCycle;
 function animalRowsFiltered(){
   let rows=seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)})).filter(a=>excelPass('animals',a));
@@ -1009,7 +1030,12 @@ function updateIatfResult(id,val,el){
   save();
   // Só reconstrói a tabela inteira se alguma linha realmente sumiu — do contrário isso quebrava
   // o foco no meio da digitação (você apertava Enter e "voltava" pra célula errada).
-  if(db.iatf.length!==before)renderIatfRows();
+  if(db.iatf.length!==before){
+    // Se tiver outra célula com edição em andamento (ainda focada, valor ainda não confirmado),
+    // força ela a confirmar ANTES de reconstruir a tabela — assim nada digitado se perde.
+    if(document.activeElement && document.activeElement!==el && typeof document.activeElement.blur==='function')document.activeElement.blur();
+    renderIatfRows();
+  }
 } window.updateIatfResult=updateIatfResult;
 
 /* PAINEL DE PRTs — devolver manualmente para uma IATF */
@@ -1362,14 +1388,15 @@ function importNaoUtilizadasExcel(file){
   })
 } window.importNaoUtilizadasExcel=importNaoUtilizadasExcel;
 
-/* EMBRIÕES — Estoque / Saída Fazenda / Usados, cada um com Fresco/VIT/DT, independente */
-function embUsados(rgd, tipo){
-  return (db.fiv||[]).filter(f=>norm(f.rgdDoadora)===norm(rgd) && f.tipo===tipo).length;
+/* EMBRIÕES — Estoque / Saída Fazenda / Usados, cada um com Fresco/VIT/DT, independente. Uma
+   linha por RGD Doadora + Touro (uma doadora pode ter várias linhas, uma pra cada touro usado). */
+function embUsados(rgd, touro, tipo){
+  return (db.fiv||[]).filter(f=>norm(f.rgdDoadora)===norm(rgd) && norm(f.sire||'')===norm(touro||'') && f.tipo===tipo).length;
 }
 function embRowCalc(e){
   const estTotal=(Number(e.estFresco)||0)+(Number(e.estVit)||0)+(Number(e.estDt)||0);
   const saidaTotal=(Number(e.saidaFresco)||0)+(Number(e.saidaVit)||0)+(Number(e.saidaDt)||0);
-  const usoFresco=embUsados(e.rgd,'Fresco'),usoVit=embUsados(e.rgd,'VIT'),usoDt=embUsados(e.rgd,'DT');
+  const usoFresco=embUsados(e.rgd,e.touro,'Fresco'),usoVit=embUsados(e.rgd,e.touro,'VIT'),usoDt=embUsados(e.rgd,e.touro,'DT');
   const usoTotal=usoFresco+usoVit+usoDt;
   const saldoTotal=saidaTotal-usoTotal;
   return {estTotal,saidaTotal,usoFresco,usoVit,usoDt,usoTotal,saldoTotal};
@@ -1385,22 +1412,23 @@ function embrioesRowsFiltered(){
   return rows;
 }
 function embrioesPage(){
-  title('Embriões','Estoque, saída pra fazenda e uso — separado por tipo (Fresco/VIT/DT), independente das outras abas.');
+  title('Embriões','Estoque, saída pra fazenda e uso — separado por tipo (Fresco/VIT/DT) e por touro, independente das outras abas.');
   setActions('');
   $('#content').innerHTML=`
+  ${bullDatalist()}
   <div class="embrioes-page">
   <div class="toolbar">
-    <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button></div>
-    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button></div>
+    <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button><button class="ghost" onclick="document.getElementById('embrioesImportFile').click()">⬆ Subir Excel</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button><button class="ghost" onclick="printEmbrioes()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green"><strong>Usados</strong> vem sozinho da aba FIV (conta quantas linhas de FIV têm aquele RGD + aquele Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total. Os grupos têm cor pra não confundir a grade.</div>
+  <div class="notice green">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total.</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
 }
 function addBlankEmbriao(){
   db.embrioes=db.embrioes||[];
-  db.embrioes.unshift({id:uid('emb'),rgd:'',estFresco:0,estVit:0,estDt:0,saidaFresco:0,saidaVit:0,saidaDt:0});
+  db.embrioes.unshift({id:uid('emb'),rgd:'',touro:'',estFresco:0,estVit:0,estDt:0,saidaFresco:0,saidaVit:0,saidaDt:0});
   save();embrioesPage();
 } window.addBlankEmbriao=addBlankEmbriao;
 function renderEmbrioesTable(){
@@ -1410,6 +1438,7 @@ function renderEmbrioesTable(){
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
   <tr>
     <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','rgd','RGD Doadora')}</th>
+    <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','touro','Touro')}</th>
     <th colspan="4" class="grp-estoque" style="position:static;text-align:center">ESTOQUE</th>
     <th colspan="4" class="grp-saida" style="position:static;text-align:center">SAÍDA FAZENDA</th>
     <th colspan="4" class="grp-usados" style="position:static;text-align:center">USADOS</th>
@@ -1430,6 +1459,7 @@ function renderEmbrioesTable(){
   </tr>
   </thead><tbody>${rows.map(e=>`<tr>
   <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:110px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-touro" list="bullsList" style="min-width:180px" value="${esc(e.touro||'')}" onkeydown="iatfEnter(event,'nav-emb-touro')" onfocus="this.select()" onchange="editEmbriao('${e.id}','touro',this.value,this)"></td>
   <td style="background:#f7fafd"><input class="cell-input nav-emb-estfresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.estFresco||''}" onkeydown="iatfEnter(event,'nav-emb-estfresco')" onchange="editEmbriao('${e.id}','estFresco',this.value,this)"></td>
   <td style="background:#f7fafd"><input class="cell-input nav-emb-estvit" inputmode="decimal" style="width:60px;text-align:center" value="${e.estVit||''}" onkeydown="iatfEnter(event,'nav-emb-estvit')" onchange="editEmbriao('${e.id}','estVit',this.value,this)"></td>
   <td style="background:#f7fafd"><input class="cell-input nav-emb-estdt" inputmode="decimal" style="width:60px;text-align:center" value="${e.estDt||''}" onkeydown="iatfEnter(event,'nav-emb-estdt')" onchange="editEmbriao('${e.id}','estDt',this.value,this)"></td>
@@ -1448,6 +1478,11 @@ function renderEmbrioesTable(){
 function editEmbriao(id,key,val,el){
   const e=(db.embrioes||[]).find(x=>x.id===id);if(!e)return;
   if(key==='rgd'){e.rgd=String(val||'').trim();save();return}
+  if(key==='touro'){
+    val=String(val||'').trim();
+    if(val && !sireExists(val)){alert(`O touro "${val}" não existe no Estoque. Cadastre em Estoque primeiro.`);el.value=e.touro||'';return}
+    e.touro=val;save();return
+  }
   const n=Number(String(val).replace(',','.'));
   e[key]=Number.isFinite(n)?Math.max(0,n):0;
   save();
@@ -1468,18 +1503,77 @@ function exportEmbrioes(){
   const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra exportar.');
   const out=rows.map(e=>({
-    RGD:e.rgd,
+    RGD:e.rgd,TOURO:e.touro||'',
     ESTOQUE_FRESCO:e.estFresco||0,ESTOQUE_VIT:e.estVit||0,ESTOQUE_DT:e.estDt||0,ESTOQUE_TOTAL:e.estTotal,
     SAIDA_FRESCO:e.saidaFresco||0,SAIDA_VIT:e.saidaVit||0,SAIDA_DT:e.saidaDt||0,SAIDA_TOTAL:e.saidaTotal,
     USADOS_FRESCO:e.usoFresco,USADOS_VIT:e.usoVit,USADOS_DT:e.usoDt,SALDO_TOTAL:e.saldoTotal
   }));
   jsonToXlsx(out,'embrioes.xlsx','Embrioes');
 } window.exportEmbrioes=exportEmbrioes;
+function printEmbrioes(){
+  const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
+  if(!rows.length)return alert('Nenhuma linha pra imprimir.');
+  const trs=rows.map(e=>`<tr><td>${esc(e.rgd)}</td><td>${esc(e.touro||'')}</td><td>${e.estFresco||0}</td><td>${e.estVit||0}</td><td>${e.estDt||0}</td><td><strong>${e.estTotal}</strong></td><td>${e.saidaFresco||0}</td><td>${e.saidaVit||0}</td><td>${e.saidaDt||0}</td><td><strong>${e.saidaTotal}</strong></td><td>${e.usoFresco}</td><td>${e.usoVit}</td><td>${e.usoDt}</td><td><strong>${e.saldoTotal}</strong></td></tr>`).join('');
+  printHTML('Embriões',`<table><thead><tr><th>RGD</th><th>Touro</th><th colspan="4">Estoque</th><th colspan="4">Saída Fazenda</th><th colspan="4">Usados</th></tr><tr><th></th><th></th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Saldo Total</th></tr></thead><tbody>${trs}</tbody></table>`);
+} window.printEmbrioes=printEmbrioes;
+function importEmbrioesExcel(file){
+  readExcel(file,rows=>{
+    if(!rows.length)return alert('O Excel não possui linhas para importar.');
+    const errs=[],prepared=[];
+    rows.forEach((r,i)=>{
+      const line=i+2;
+      const rgd=String(pick(r,['RGD'])||'').trim();
+      if(!rgd)return;
+      const touro=String(pick(r,['TOURO'])||'').trim();
+      if(touro && !sireExists(touro)){errs.push(`Linha ${line}: touro "${touro}" não existe no Estoque.`);return}
+      const num=(names)=>{const v=pick(r,names);if(v===''||v===undefined||v===null)return 0;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){errs.push(`Linha ${line}: valor inválido em ${names[0]}.`);return 0}return n};
+      prepared.push({
+        rgd,touro,
+        estFresco:num(['ESTOQUE_FRESCO','FRESCO']),
+        estVit:num(['ESTOQUE_VIT','VIT']),
+        estDt:num(['ESTOQUE_DT','DT']),
+        saidaFresco:num(['SAIDA_FRESCO']),
+        saidaVit:num(['SAIDA_VIT']),
+        saidaDt:num(['SAIDA_DT'])
+      });
+    });
+    if(errs.length){showImportErrors('Importação com problemas',`Corrija ${errs.length} linha(s) e envie o Excel novamente. Nada foi importado.`,errs);return}
+    if(!prepared.length)return alert('Nenhum RGD encontrado no arquivo.');
+    db.embrioes=db.embrioes||[];
+    let novos=0,atualizados=0;
+    prepared.forEach(x=>{
+      // agora a chave é RGD + Touro (uma doadora pode ter uma linha por touro usado nela)
+      const existing=db.embrioes.find(e=>norm(e.rgd)===norm(x.rgd)&&norm(e.touro||'')===norm(x.touro||''));
+      if(existing){
+        // soma ao que já existe (é assim que o estoque acumula entre sessões/OPUs)
+        existing.estFresco=(Number(existing.estFresco)||0)+x.estFresco;
+        existing.estVit=(Number(existing.estVit)||0)+x.estVit;
+        existing.estDt=(Number(existing.estDt)||0)+x.estDt;
+        existing.saidaFresco=(Number(existing.saidaFresco)||0)+x.saidaFresco;
+        existing.saidaVit=(Number(existing.saidaVit)||0)+x.saidaVit;
+        existing.saidaDt=(Number(existing.saidaDt)||0)+x.saidaDt;
+        atualizados++;
+      }else{
+        db.embrioes.push({id:uid('emb'),rgd:x.rgd,touro:x.touro,estFresco:x.estFresco,estVit:x.estVit,estDt:x.estDt,saidaFresco:x.saidaFresco,saidaVit:x.saidaVit,saidaDt:x.saidaDt});
+        novos++;
+      }
+    });
+    save();
+    alert(`${novos} doadora(s) nova(s) e ${atualizados} com estoque somado ao que já existia.`);
+    if(page==='embrioes')embrioesPage();
+  })
+} window.importEmbrioesExcel=importEmbrioesExcel;
 
 /* FIV — RGD Doadora puxa da lista já cadastrada em Embriões; Tipo alimenta os Usados de lá */
 function embDoadoraDatalist(){
   const list=[...new Set((db.embrioes||[]).map(e=>e.rgd).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}));
   return `<datalist id="embDoadoraList">${list.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist>`;
+}
+// Touros associados àquele RGD Doadora em Embriões (é daqui que a lista suspensa do 1º
+// Acasalamento na FIV puxa — se a doadora só tem uma linha com TUPA, só aparece TUPA; se tiver
+// TUPA e ROLEX, aparecem os dois).
+function touroOptionsForRgd(rgd){
+  return [...new Set((db.embrioes||[]).filter(e=>norm(e.rgd)===norm(rgd)&&String(e.touro||'').trim()).map(e=>e.touro))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 function fivRowsFiltered(){
   let rows=(db.fiv||[]).filter(r=>excelPass('fiv',r));
@@ -1488,16 +1582,16 @@ function fivRowsFiltered(){
   return rows;
 }
 function fivPage(){
-  title('FIV','Transferência de embriões — RGD Doadora vem de Embriões; o Tipo alimenta o Usados de lá sozinho.');
+  title('FIV','Transferência de embriões — RGD Doadora e touro vêm de Embriões; o Tipo alimenta o Usados de lá sozinho.');
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}${embDoadoraDatalist()}<datalist id="fivResultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="fiv-page">
   <div class="toolbar">
     <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button></div>
-    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button></div>
+    <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button><button class="ghost" onclick="printFiv()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). 1º Acasalamento puxa do Estoque de sêmen. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
+  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
@@ -1515,7 +1609,7 @@ function renderFivTable(){
   <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
   </thead><tbody>${rows.map(r=>`<tr>
   <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
-  <td><input class="cell-input nav-fiv-sire" list="bullsList" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"></td>
+  <td><input class="cell-input nav-fiv-sire" list="fivSireList-${r.id}" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"><datalist id="fivSireList-${r.id}">${touroOptionsForRgd(r.rgdDoadora).map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist></td>
   <td><input class="cell-input nav-fiv-recept" style="min-width:110px" value="${esc(r.receptora||'')}" onkeydown="iatfEnter(event,'nav-fiv-recept')" onchange="editFiv('${r.id}','receptora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-abcz" style="min-width:110px" value="${esc(r.abcz||'')}" onkeydown="iatfEnter(event,'nav-fiv-abcz')" onchange="editFiv('${r.id}','abcz',this.value,this)"></td>
   <td><select class="cell-input nav-fiv-tipo" style="min-width:90px" onkeydown="iatfEnter(event,'nav-fiv-tipo')" onchange="editFiv('${r.id}','tipo',this.value,this)"><option value="">—</option><option ${r.tipo==='Fresco'?'selected':''}>Fresco</option><option ${r.tipo==='VIT'?'selected':''}>VIT</option><option ${r.tipo==='DT'?'selected':''}>DT</option></select></td>
@@ -1534,6 +1628,11 @@ function editFiv(id,key,val,el){
   }
   r[key]=val;
   save();
+  if(key==='rgdDoadora'){
+    // RGD mudou: atualiza a lista suspensa do touro SÓ dessa linha, sem recarregar a tabela toda
+    const dl=document.getElementById('fivSireList-'+id);
+    if(dl)dl.innerHTML=touroOptionsForRgd(val).map(t=>`<option value="${esc(t)}"></option>`).join('');
+  }
 } window.editFiv=editFiv;
 function deleteFiv(id){
   if(!confirm('Excluir esta linha de FIV?'))return;
@@ -1547,6 +1646,12 @@ function exportFiv(){
   const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',TIPO:r.tipo||'',RESULTADO:r.resultado||''}));
   jsonToXlsx(out,'fiv.xlsx','FIV');
 } window.exportFiv=exportFiv;
+function printFiv(){
+  const rows=fivRowsFiltered().filter(r=>String(r.rgdDoadora||'').trim());
+  if(!rows.length)return alert('Nenhuma linha pra imprimir.');
+  const trs=rows.map(r=>`<tr><td>${esc(r.rgdDoadora)}</td><td>${esc(r.sire||'')}</td><td>${esc(r.receptora||'')}</td><td>${esc(r.abcz||'')}</td><td>${esc(r.tipo||'')}</td><td>${esc(r.resultado||'')}</td></tr>`).join('');
+  printHTML('FIV',`<table><thead><tr><th>RGD Doadora</th><th>1º Acasalamento</th><th>Nº Receptora</th><th>Nº ABCZ</th><th>Tipo</th><th>Resultado</th></tr></thead><tbody>${trs}</tbody></table>`);
+} window.printFiv=printFiv;
 
 /* ESTOQUE */
 function stockRowsFiltered(){
