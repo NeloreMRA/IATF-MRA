@@ -1472,8 +1472,17 @@ function renderEmbrioesTable(){
   <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoVit}</td>
   <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoDt}</td>
   <td class="cell-saldo-total" style="background:#faf8ff;text-align:center;font-weight:700;color:${e.saldoTotal<0?'#a84d2b':'#245f40'}">${e.saldoTotal}</td>
-  <td><button class="mini" onclick="deleteEmbriao('${e.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
+  <td><button class="mini" onclick="deleteEmbriao('${e.id}')">Excluir</button></td></tr>`).join('')}</tbody>${embrioesTotalsRowHTML(rows)}</table></div>`;
   restoreViewPosition(__view);
+}
+function embrioesTotalsRowHTML(rows){
+  const sum=k=>rows.reduce((a,e)=>a+(Number(e[k])||0),0);
+  return `<tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2">
+  <td colspan="2" style="text-align:right">TOTAL</td>
+  <td style="text-align:center">${sum('estFresco')}</td><td style="text-align:center">${sum('estVit')}</td><td style="text-align:center">${sum('estDt')}</td><td style="text-align:center">${sum('estTotal')}</td>
+  <td style="text-align:center">${sum('saidaFresco')}</td><td style="text-align:center">${sum('saidaVit')}</td><td style="text-align:center">${sum('saidaDt')}</td><td style="text-align:center">${sum('saidaTotal')}</td>
+  <td style="text-align:center">${sum('usoFresco')}</td><td style="text-align:center">${sum('usoVit')}</td><td style="text-align:center">${sum('usoDt')}</td><td style="text-align:center">${sum('saldoTotal')}</td>
+  <td></td></tr></tfoot>`;
 }
 function editEmbriao(id,key,val,el){
   const e=(db.embrioes||[]).find(x=>x.id===id);if(!e)return;
@@ -1492,6 +1501,8 @@ function editEmbriao(id,key,val,el){
   const cs=tr.querySelector('.cell-saida-total');if(cs)cs.textContent=calc.saidaTotal;
   const csa=tr.querySelector('.cell-saldo-total');
   if(csa){csa.textContent=calc.saldoTotal;csa.style.color=calc.saldoTotal<0?'#a84d2b':'#245f40'}
+  const tfoot=tr.closest('table')?.querySelector('tfoot');
+  if(tfoot)tfoot.outerHTML=embrioesTotalsRowHTML(embrioesRowsFiltered());
 } window.editEmbriao=editEmbriao;
 function deleteEmbriao(id){
   if(!confirm('Excluir esta linha de embriões?'))return;
@@ -1514,7 +1525,9 @@ function printEmbrioes(){
   const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra imprimir.');
   const trs=rows.map(e=>`<tr><td>${esc(e.rgd)}</td><td>${esc(e.touro||'')}</td><td>${e.estFresco||0}</td><td>${e.estVit||0}</td><td>${e.estDt||0}</td><td><strong>${e.estTotal}</strong></td><td>${e.saidaFresco||0}</td><td>${e.saidaVit||0}</td><td>${e.saidaDt||0}</td><td><strong>${e.saidaTotal}</strong></td><td>${e.usoFresco}</td><td>${e.usoVit}</td><td>${e.usoDt}</td><td><strong>${e.saldoTotal}</strong></td></tr>`).join('');
-  printHTML('Embriões',`<table><thead><tr><th>RGD</th><th>Touro</th><th colspan="4">Estoque</th><th colspan="4">Saída Fazenda</th><th colspan="4">Usados</th></tr><tr><th></th><th></th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Saldo Total</th></tr></thead><tbody>${trs}</tbody></table>`);
+  const sum=k=>rows.reduce((a,e)=>a+(Number(e[k])||0),0);
+  const totalRow=`<tr style="font-weight:bold;border-top:2px solid #999"><td colspan="2" style="text-align:right">TOTAL</td><td>${sum('estFresco')}</td><td>${sum('estVit')}</td><td>${sum('estDt')}</td><td>${sum('estTotal')}</td><td>${sum('saidaFresco')}</td><td>${sum('saidaVit')}</td><td>${sum('saidaDt')}</td><td>${sum('saidaTotal')}</td><td>${sum('usoFresco')}</td><td>${sum('usoVit')}</td><td>${sum('usoDt')}</td><td>${sum('saldoTotal')}</td></tr>`;
+  printHTML('Embriões',`<table><thead><tr><th>RGD</th><th>Touro</th><th colspan="4">Estoque</th><th colspan="4">Saída Fazenda</th><th colspan="4">Usados</th></tr><tr><th></th><th></th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Saldo Total</th></tr></thead><tbody>${trs}</tbody><tfoot>${totalRow}</tfoot></table>`);
 } window.printEmbrioes=printEmbrioes;
 function importEmbrioesExcel(file){
   readExcel(file,rows=>{
