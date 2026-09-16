@@ -82,7 +82,9 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .embrioes-page table,.fiv-page table{font-size:11px}
 .embrioes-page th,.fiv-page th{padding:7px 7px;font-size:9.5px}
 .embrioes-page td,.fiv-page td{padding:4px 6px;border:1px solid #e3e7e4}
-.embrioes-page .cell-input,.fiv-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px;border:1px solid #d9dfda!important;background:#fff}
+.embrioes-page .cell-input,.fiv-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px;border:1px solid transparent!important;background:transparent!important}
+.embrioes-page .cell-input:hover,.fiv-page .cell-input:hover{border-color:#c9d6cd!important}
+.embrioes-page .cell-input:focus,.fiv-page .cell-input:focus{outline:none;border-color:#72a386!important;background:#fff!important}
 .embrioes-page .notice,.fiv-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
 .embrioes-page .toolbar,.fiv-page .toolbar{margin-bottom:7px}
 .grp-estoque{background:#e7f0ff;color:#245a9c}
@@ -95,6 +97,16 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .animals-page td,.iatf-page td,.stock-page td{padding:4px 6px}
 .animals-page .cell-input,.iatf-page .cell-input,.stock-page .cell-input{padding:3px 4px;min-height:27px;font-size:11px;border:1px solid #d9dfda!important;background:#fff}
 .animals-page td,.iatf-page td,.stock-page td{border:1px solid #e3e7e4}
+/* Teste de layout no Estoque: sem caixinha nos campos, só linha divisória entre colunas
+   e zebra (branco / verde bem clarinho) pra separar as linhas visualmente. */
+.stock-page td{border:0!important;border-right:1px solid #e6ebe7!important}
+.stock-page td:last-child{border-right:0!important}
+.stock-page tbody tr:nth-child(even){background:#eff7f2}
+.stock-page tbody tr:nth-child(odd){background:#fff}
+.stock-page tbody tr:hover{background:#e7f3ea!important}
+.stock-page .cell-input{border:1px solid transparent!important;background:transparent!important}
+.stock-page .cell-input:hover{border-color:#c9d6cd!important}
+.stock-page .cell-input:focus{outline:none;border-color:#72a386!important;background:#fff!important}
 .animals-page .notice,.iatf-page .notice,.stock-page .notice{padding:8px 10px;margin-bottom:9px;font-size:11px}
 .animals-page .toolbar,.iatf-page .toolbar,.stock-page .toolbar{margin-bottom:7px}
 .animals-page .cell-input[style*="min-width:110px"]{min-width:92px!important}
@@ -152,7 +164,7 @@ body.authenticated #loginScreen{display:none}
     <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
     <button data-page="embrioes" class="nav">❄ <span>Embriões</span></button>
     <button data-page="fiv" class="nav">⚗ <span>FIV</span></button>
-    <button data-page="deleted" class="nav">↺ <span>Exclusões</span></button>
+    <button data-page="deleted" class="nav" style="color:#e0827b">↺ <span>Exclusões</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
   <div class="side-season"><label>Estação</label><select id="seasonHeader"></select></div>
@@ -1449,7 +1461,7 @@ function embrioesPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button><button class="ghost" onclick="document.getElementById('embrioesImportFile').click()">⬆ Subir Excel</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button><button class="ghost" onclick="printEmbrioes()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total.</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total.</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
@@ -1632,7 +1644,7 @@ function fivPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button><button class="ghost" onclick="printFiv()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
