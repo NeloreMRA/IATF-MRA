@@ -1008,7 +1008,8 @@ function renderIatfRows(){
   const root=$('#iatfTable');if(!root)return;
   const __view=captureViewPosition();
   const rows=iatfRowsFiltered();
-  root.innerHTML=`<div class="table-wrap"><table><thead>
+  const total=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).length;
+  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 8px;font-size:11px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matriz(es) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong> nesta IATF</div><div class="table-wrap"><table><thead>
   <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
