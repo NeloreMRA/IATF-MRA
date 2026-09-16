@@ -362,9 +362,17 @@ function undoLastChange(){
 }
 window.undoLastChange=undoLastChange;
 let lastLocalEditAt=0;
+const PENDING_KEY=STORE+'-pending';
 function save(renderToo=false){
   registerUndoSnapshot();
-  try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){console.warn('Cache local:',e)}
+  try{
+    localStorage.setItem(STORE,JSON.stringify(db));
+    // Marca que existe uma alteração ainda não confirmada no Firebase. Só some quando o envio
+    // realmente terminar com sucesso — é o que impede um F5 rápido demais de "desfazer" sua
+    // edição (antes, ao recarregar, a tela sempre confiava mais no Firebase do que no que você
+    // tinha acabado de fazer, e como o Firebase ainda não tinha recebido, ele te atropelava).
+    localStorage.setItem(PENDING_KEY,'1');
+  }catch(e){console.warn('Cache local:',e)}
   if(renderToo)render();
   if(applyingRemote)return;
   lastLocalEditAt=Date.now();
@@ -380,10 +388,13 @@ async function syncToFirestore(){
     await stateRef.set({db:clean,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     lastRemoteJSON=JSON.stringify(clean);
     localWritePending=false;
+    try{localStorage.removeItem(PENDING_KEY)}catch(e){}
     setSyncStatus('ok','Sincronizado');
   }catch(e){
     console.error('Erro ao sincronizar com Firestore:',e);
     localWritePending=false;
+    // NÃO remove o PENDING_KEY aqui — o envio falhou de verdade, então a proteção contra F5
+    // continua valendo (e a próxima abertura do app tenta reenviar sozinha).
     setSyncStatus('error','Problema de conexão');
   }
 }
@@ -416,9 +427,11 @@ window.closeModal=closeModal;
 
 async function init(){
   let localDb;
+  let hadPendingWrite=false;
   try{
     const saved=localStorage.getItem(STORE);
     localDb=migrate(saved?JSON.parse(saved):deepClone(DEFAULT_DB));
+    hadPendingWrite=!!localStorage.getItem(PENDING_KEY);
   }catch(e){
     console.warn('Não foi possível ler o cache local:',e);
     localDb=migrate(deepClone(DEFAULT_DB));
@@ -433,8 +446,17 @@ async function init(){
     if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
     firestore=firebase.firestore();
     stateRef=firestore.collection('iatfApp').doc('state');
-    const snap=await stateRef.get();
-    if(snap.exists && snap.data() && snap.data().db){
+    if(hadPendingWrite){
+      // Da última vez que o app rodou, teve uma alteração que ainda não tinha sido confirmada
+      // no Firebase (provavelmente a página foi recarregada rápido demais logo depois de editar
+      // algo). Em vez de puxar o que está no Firebase — que estaria desatualizado e apagaria
+      // essa edição de novo — manda o que está salvo localmente PRIMEIRO, pra não perder nada.
+      setSyncStatus('saving','Terminando de salvar uma alteração pendente...');
+      await syncToFirestore();
+      lastRemoteJSON=JSON.stringify(deepClone(db));
+    }
+    const snap=hadPendingWrite?null:await stateRef.get();
+    if(snap && snap.exists && snap.data() && snap.data().db){
       applyingRemote=true;
       db=migrate(snap.data().db);
       localStorage.setItem(STORE,JSON.stringify(db));
@@ -443,7 +465,7 @@ async function init(){
       applyingRemote=false;
       render();
       setSyncStatus('ok','Sincronizado');
-    }else{
+    }else if(!hadPendingWrite){
       // Primeira abertura: envia a base atual da V6 ao Firestore.
       await stateRef.set({db:deepClone(db),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
       lastRemoteJSON=JSON.stringify(deepClone(db));
@@ -910,6 +932,11 @@ function sortIatf(k){if(iatfSort.key===k)iatfSort.dir*=-1;else iatfSort={key:k,d
 function iff(k,v){iatfFilters[k]=v;renderIatfRows()} window.iff=iff;
 function eligibleForIatf(a,cycle){
   if(!a||!a.rgd)return false;
+  // Não "volta no tempo": se ela já tem QUALQUER lançamento nesta IATF ou numa IATF à frente
+  // (ex: ela já está na 10ª), não entra aqui — é isso que fazia ela aparecer em várias IATFs
+  // de uma vez quando as categorias eram marcadas fora de ordem.
+  const jaAdiante=seasonRows().some(r=>r.rgd===a.rgd&&Number(r.cycle)>=Number(cycle));
+  if(jaAdiante)return false;
   // Para a categoria escolhida: quem nunca entrou antes aparece; quem já entrou volta se
   // o último diagnóstico anterior for V ou se ainda estiver sem resultado.
   const previous=seasonRows().filter(r=>r.rgd===a.rgd&&Number(r.cycle)<Number(cycle)).sort((x,y)=>Number(y.cycle)-Number(x.cycle));
