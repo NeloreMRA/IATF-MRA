@@ -315,6 +315,16 @@ function migrate(x){
     });
     x.meta.iatfCycleCategories_v9=true;
   }
+  // --- MIGRAÇÃO v10: Acasalamentos, Não Utilizadas e FIV passam a pertencer a uma estação
+  // (igual Matrizes/IATF já eram). Nada é apagado — os lançamentos que já existiam viram
+  // pertencentes à estação que estava ativa até agora, então continuam exatamente onde estavam.
+  if(!x.meta.seasonScopedExtras_v10){
+    (x.acasalamentos||[]).forEach(a=>{if(!a.seasonId)a.seasonId=x.meta.activeSeasonId});
+    (x.naoUtilizadas||[]).forEach(a=>{if(!a.seasonId)a.seasonId=x.meta.activeSeasonId});
+    (x.fiv||[]).forEach(a=>{if(!a.seasonId)a.seasonId=x.meta.activeSeasonId});
+    x.meta.seasonScopedExtras_v10=true;
+  }
+  (x.fiv||[]).forEach(f=>{if(f.data===undefined)f.data=''});
   return x
 }
 // PRT substitui o antigo "M" (matar). PRT conta como não-prenha nos cálculos.
@@ -403,6 +413,9 @@ async function syncToFirestore(){
 function activeSeason(){return db.seasons.find(s=>s.id===db.meta.activeSeasonId)||db.seasons[0]}
 function seasonRows(){return db.iatf.filter(r=>r.seasonId===db.meta.activeSeasonId)}
 function seasonAnimals(sid=db.meta.activeSeasonId){return db.animals.filter(a=>a.seasonId===sid)}
+function seasonAcasal(sid=db.meta.activeSeasonId){return (db.acasalamentos||[]).filter(a=>a.seasonId===sid)}
+function seasonNaoUtil(sid=db.meta.activeSeasonId){return (db.naoUtilizadas||[]).filter(a=>a.seasonId===sid)}
+function seasonFiv(sid=db.meta.activeSeasonId){return (db.fiv||[]).filter(a=>a.seasonId===sid)}
 function cycleDate(c){return ((db.cycleDates||{})[db.meta.activeSeasonId]||{})[Number(c)]||''}
 function setCycleDate(c,v){db.cycleDates[db.meta.activeSeasonId]=db.cycleDates[db.meta.activeSeasonId]||{};db.cycleDates[db.meta.activeSeasonId][Number(c)]=v;save()}
 function sireNames(){return [...new Set(db.semen.map(s=>String(s.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'))}
@@ -574,8 +587,8 @@ function render(){
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
   else if(page==='acasal')acasalPage();
-  else if(page==='embrioes')embrioesPage();
   else if(page==='fiv')fivPage();
+  else if(page==='embrioes')embrioesPage();
   else if(page==='deleted')deletedAnimalsPage();
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
@@ -590,9 +603,9 @@ function rawRowsForExcel(kind){
   if(kind==='animals')return seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)}));
   if(kind==='iatf')return seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle));
   if(kind==='stock')return db.semen.map(s=>({...s,used:usedEffective(s),saldo:stockBalance(s)}));
-  if(kind==='acasal')return (db.acasalamentos||[]).slice();
+  if(kind==='acasal')return seasonAcasal();
   if(kind==='embrioes')return (db.embrioes||[]).map(e=>({...e,...embRowCalc(e)}));
-  if(kind==='fiv')return (db.fiv||[]).slice();
+  if(kind==='fiv')return seasonFiv();
   return []
 }
 function excelValue(row,key){const v=row?.[key];return v===null||v===undefined?'':String(v)}
@@ -602,6 +615,7 @@ function excelDisplay(kind,key,v){
   if(kind==='animals'&&key==='curCycle')return v===''?'(Sem IATF)':v+'ª IATF';
   if(kind==='acasal'&&key==='createdAt')return v===''?'(Vazios)':fmtDate(v);
   if(kind==='fiv'&&key==='resultado')return v===''?'(Vazio)':v;
+  if(kind==='fiv'&&key==='data')return v===''?'(Vazios)':fmtDate(v);
   if(kind==='iatf'&&key==='result')return v===''?'(Vazio)':v;
   if(v==='')return '(Vazios)';return v
 }
@@ -780,7 +794,8 @@ function setAnimalIatfCycle(id,val,el){
 function animalRowsFiltered(){
   let rows=seasonAnimals().map(a=>({...a,status:latestStatus(a.rgd),curCycle:matrizCurrentCycle(a.rgd)})).filter(a=>excelPass('animals',a));
   const k=animalSort.key,d=animalSort.dir;
-  rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
+  if(k)rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
+  return rows
 }
 function sortAnimal(k){if(animalSort.key===k)animalSort.dir*=-1;else animalSort={key:k,dir:1};renderAnimalTable()}
 window.sortAnimal=sortAnimal;
@@ -809,8 +824,9 @@ function animals(){
 }
 function todayISO(){return new Date().toISOString().slice(0,10)}
 function addBlankAnimal(){
-  db.animals.unshift({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:'',firstSire:'',category:'Vacas',active:true,createdAt:todayISO()});
-  save();animals()
+  db.animals.push({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:'',firstSire:'',category:'Vacas',active:true,createdAt:todayISO()});
+  save();animals();
+  setTimeout(()=>{const els=$$('.nav-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankAnimal=addBlankAnimal;
 function renderAnimalTable(){
   const root=$('#animalTable');if(!root)return;
@@ -927,7 +943,7 @@ function iatfRowsFiltered(){
   // A tabela sempre mostra TUDO que já está nesta IATF, categoria marcada ou não — inclusive uma
   // matriz que você colocou manualmente pela coluna "IATF atual" em Matrizes.
   let rows=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).filter(r=>excelPass('iatf',r));
-  const k=iatfSort.key,d=iatfSort.dir;rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
+  const k=iatfSort.key,d=iatfSort.dir;if(k)rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
 function sortIatf(k){if(iatfSort.key===k)iatfSort.dir*=-1;else iatfSort={key:k,dir:1};renderIatfRows()} window.sortIatf=sortIatf;
 function iff(k,v){iatfFilters[k]=v;renderIatfRows()} window.iff=iff;
@@ -1210,16 +1226,16 @@ function outputIatfRows(){
 }
 function runIatfOutput(mode){const rows=outputIatfRows();if(!rows.length)return alert('Nenhum registro para esta seleção.');if(mode==='export')exportIatfRows(rows);else printIatfRows(rows);closeModal()} window.runIatfOutput=runIatfOutput;
 
-/* ACASALAMENTOS — planejamento independente, não mexe em Matrizes nem IATF */
+/* ACASALAMENTOS — planejamento independente, não mexe em Matrizes nem IATF. Pertence à estação. */
 const ACASAL_COLS=[['iatf1','1º IATF'],['iatf2','2º IATF'],['iatf3','3º IATF'],['iatf4','4º IATF'],['fiv1','1º FIV'],['fiv2','2º FIV']];
 function acasalRowsFiltered(){
-  let rows=(db.acasalamentos||[]).filter(a=>excelPass('acasal',a));
+  let rows=seasonAcasal().filter(a=>excelPass('acasal',a));
   const k=acasalSort.key,d=acasalSort.dir;
-  rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
+  if(k)rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
   return rows;
 }
 function acasalPage(){
-  title('Acasalamentos','Planejamento de touros por IATF/FIV — independente das abas Matrizes e IATF.');
+  title('Acasalamentos','Planejamento de touros por IATF/FIV — independente das abas Matrizes e IATF. Pertence à estação '+activeSeason().name+'.');
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}
@@ -1228,7 +1244,7 @@ function acasalPage(){
     <div class="quick-add">
       <button class="primary" onclick="addBlankAcasal()">+ Linha em branco</button>
       <button class="ghost" onclick="document.getElementById('acasalImportFile').click()">⬆ Subir Excel</button>
-      <button class="danger-btn" onclick="openNaoUtilizadasPanel()">🗂 Não utilizadas (${(db.naoUtilizadas||[]).length})</button>
+      <button class="danger-btn" onclick="openNaoUtilizadasPanel()">🗂 Não utilizadas (${seasonNaoUtil().length})</button>
     </div>
     <div class="out-actions">
       ${zoomControlsHTML()}
@@ -1236,21 +1252,22 @@ function acasalPage(){
       <button onclick="exportAcasalToMatrizesTemplate()" style="border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:#e7b549;color:#153e2c;font-weight:700">⬇ Excel pra subir em Matrizes</button>
     </div>
   </div>
-  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.</div>
+  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer. Pertence à estação <strong>${esc(activeSeason().name)}</strong> — cada estação nova começa vazia aqui.</div>
   <div id="acasalTable"></div>
   </div>`;
   renderAcasalTable();
 }
 function addBlankAcasal(){
   db.acasalamentos=db.acasalamentos||[];
-  db.acasalamentos.unshift({id:uid('ac'),rgd:'',category:'',iatf1:'',iatf2:'',iatf3:'',iatf4:'',fiv1:'',fiv2:'',createdAt:todayISO()});
+  db.acasalamentos.push({id:uid('ac'),seasonId:db.meta.activeSeasonId,rgd:'',category:'',iatf1:'',iatf2:'',iatf3:'',iatf4:'',fiv1:'',fiv2:'',createdAt:todayISO()});
   save();acasalPage();
+  setTimeout(()=>{const els=$$('.nav-a-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankAcasal=addBlankAcasal;
 function renderAcasalTable(){
   const root=$('#acasalTable');if(!root)return;
   const __view=captureViewPosition();
   const rows=acasalRowsFiltered();
-  const total=(db.acasalamentos||[]).length;
+  const total=seasonAcasal().length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong></div><div class="table-wrap"><table><thead>
   <tr><th>${excelHead('acasal','rgd','RGD')}</th><th>${excelHead('acasal','category','Categoria')}</th>${ACASAL_COLS.map(([k,l])=>`<th>${excelHead('acasal',k,l)}</th>`).join('')}<th>${excelHead('acasal','createdAt','Criada em')}</th><th></th></tr>
   </thead><tbody>${rows.map(a=>`<tr>
@@ -1291,7 +1308,7 @@ function exportAcasalFull(){
   jsonToXlsx(out,'acasalamentos.xlsx','Acasalamentos');
 } window.exportAcasalFull=exportAcasalFull;
 
-/* NÃO UTILIZADAS — mini-tabela dentro de um modal (RGD, categoria, destinação, motivo) */
+/* NÃO UTILIZADAS — mini-tabela dentro de um modal (RGD, categoria, destinação, motivo). Pertence à estação. */
 function openNaoUtilizadasPanel(){renderNaoUtilizadasModal()}
 window.openNaoUtilizadasPanel=openNaoUtilizadasPanel;
 function naoUtilizadaRowHTML(r){
@@ -1303,9 +1320,9 @@ function naoUtilizadaRowHTML(r){
   <td style="padding:4px"><button class="mini" onclick="deleteNaoUtilizada('${r.id}')">Excluir</button></td></tr>`;
 }
 function renderNaoUtilizadasModal(){
-  const rows=db.naoUtilizadas||[];
+  const rows=seasonNaoUtil();
   openModal(`<h2>Matrizes não utilizadas no acasalamento</h2>
-  <div class="notice green">Banco de dados simples: RGD, categoria, destinação (Abate ou Receptora) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos.</div>
+  <div class="notice green">Banco de dados simples: RGD, categoria, destinação (Abate ou Receptora) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos. Pertence à estação ${esc(activeSeason().name)}.</div>
   <div class="quick-add" style="margin-bottom:10px"><button class="primary" type="button" onclick="addBlankNaoUtilizada()">+ Linha em branco</button><button class="ghost" type="button" onclick="document.getElementById('naoUtilImportFile').click()">⬆ Subir Excel</button><button class="ghost" type="button" onclick="exportNaoUtilizadas()">⬇ Baixar Excel</button></div>
   <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px">
   <table style="width:100%;border-collapse:collapse;font-size:12px" id="nuTable">
@@ -1316,7 +1333,7 @@ function renderNaoUtilizadasModal(){
 }
 function addBlankNaoUtilizada(){
   db.naoUtilizadas=db.naoUtilizadas||[];
-  db.naoUtilizadas.unshift({id:uid('nu'),rgd:'',category:'',destino:'',motivo:'',createdAt:todayISO()});
+  db.naoUtilizadas.push({id:uid('nu'),seasonId:db.meta.activeSeasonId,rgd:'',category:'',destino:'',motivo:'',createdAt:todayISO()});
   save();renderNaoUtilizadasModal();
 } window.addBlankNaoUtilizada=addBlankNaoUtilizada;
 function editNaoUtilizada(id,key,val,el){
@@ -1332,13 +1349,13 @@ function deleteNaoUtilizada(id){
 } window.deleteNaoUtilizada=deleteNaoUtilizada;
 function exportNaoUtilizadas(){
   if(!needXLSX())return;
-  const rows=(db.naoUtilizadas||[]).filter(r=>String(r.rgd||'').trim());
+  const rows=seasonNaoUtil().filter(r=>String(r.rgd||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra exportar.');
   const out=rows.map(r=>({RGD:r.rgd,CATEGORIA:r.category||'',DESTINACAO:r.destino||'',MOTIVO:r.motivo||''}));
   jsonToXlsx(out,'nao_utilizadas.xlsx','NaoUtilizadas');
 } window.exportNaoUtilizadas=exportNaoUtilizadas;
 
-/* IMPORTAÇÃO — Acasalamentos e Não Utilizadas */
+/* IMPORTAÇÃO — Acasalamentos e Não Utilizadas (respeita a estação ativa) */
 function importAcasalExcel(file){
   readExcel(file,rows=>{
     if(!rows.length)return alert('O Excel não possui linhas para importar.');
@@ -1363,13 +1380,13 @@ function importAcasalExcel(file){
     let novos=0,atualizados=0;
     db.acasalamentos=db.acasalamentos||[];
     prepared.forEach(x=>{
-      const existing=db.acasalamentos.find(a=>norm(a.rgd)===norm(x.rgd));
+      const existing=db.acasalamentos.find(a=>a.seasonId===db.meta.activeSeasonId&&norm(a.rgd)===norm(x.rgd));
       if(existing){
         if(x.cat)existing.category=x.cat;
         ACASAL_COLS.forEach(([k])=>{if(x[k])existing[k]=x[k]});
         atualizados++;
       }else{
-        const novo={id:uid('ac'),rgd:x.rgd,category:x.cat||'',createdAt:todayISO()};
+        const novo={id:uid('ac'),seasonId:db.meta.activeSeasonId,rgd:x.rgd,category:x.cat||'',createdAt:todayISO()};
         ACASAL_COLS.forEach(([k])=>{novo[k]=x[k]||''});
         db.acasalamentos.push(novo);
         novos++;
@@ -1400,14 +1417,14 @@ function importNaoUtilizadasExcel(file){
     db.naoUtilizadas=db.naoUtilizadas||[];
     let novos=0,atualizados=0;
     prepared.forEach(x=>{
-      const existing=db.naoUtilizadas.find(a=>norm(a.rgd)===norm(x.rgd));
+      const existing=db.naoUtilizadas.find(a=>a.seasonId===db.meta.activeSeasonId&&norm(a.rgd)===norm(x.rgd));
       if(existing){
         if(x.cat)existing.category=x.cat;
         if(x.dest)existing.destino=x.dest;
         if(x.motivo)existing.motivo=x.motivo;
         atualizados++;
       }else{
-        db.naoUtilizadas.push({id:uid('nu'),rgd:x.rgd,category:x.cat||'',destino:x.dest||'',motivo:x.motivo||'',createdAt:todayISO()});
+        db.naoUtilizadas.push({id:uid('nu'),seasonId:db.meta.activeSeasonId,rgd:x.rgd,category:x.cat||'',destino:x.dest||'',motivo:x.motivo||'',createdAt:todayISO()});
         novos++;
       }
     });
@@ -1417,8 +1434,9 @@ function importNaoUtilizadasExcel(file){
   })
 } window.importNaoUtilizadasExcel=importNaoUtilizadasExcel;
 
-/* EMBRIÕES — Estoque / Saída Fazenda / Usados, cada um com Fresco/VIT/DT, independente. Uma
-   linha por RGD Doadora + Touro (uma doadora pode ter várias linhas, uma pra cada touro usado). */
+/* EMBRIÕES — Estoque / Saída Fazenda / Usados, cada um com Fresco/VIT/DT. GLOBAL (não pertence a
+   nenhuma estação — é estoque de verdade, junto com o Estoque de Sêmen, e continua entre estações).
+   Uma linha por RGD Doadora + Touro (uma doadora pode ter várias linhas, uma pra cada touro usado). */
 function embUsados(rgd, touro, tipo){
   return (db.fiv||[]).filter(f=>norm(f.rgdDoadora)===norm(rgd) && norm(f.sire||'')===norm(touro||'') && f.tipo===tipo).length;
 }
@@ -1427,13 +1445,15 @@ function embRowCalc(e){
   const saidaTotal=(Number(e.saidaFresco)||0)+(Number(e.saidaVit)||0)+(Number(e.saidaDt)||0);
   const usoFresco=embUsados(e.rgd,e.touro,'Fresco'),usoVit=embUsados(e.rgd,e.touro,'VIT'),usoDt=embUsados(e.rgd,e.touro,'DT');
   const usoTotal=usoFresco+usoVit+usoDt;
-  const saldoTotal=saidaTotal-usoTotal;
+  // Estoque + Saída − Usados: às vezes o embrião vai direto do estoque central pra vaca, sem
+  // passar por "saída fazenda" antes — então o saldo tem que considerar os dois potes juntos.
+  const saldoTotal=estTotal+saidaTotal-usoTotal;
   return {estTotal,saidaTotal,usoFresco,usoVit,usoDt,usoTotal,saldoTotal};
 }
 function embrioesRowsFiltered(){
   let rows=(db.embrioes||[]).map(e=>({...e,...embRowCalc(e)})).filter(e=>excelPass('embrioes',e));
   const k=embrioesSort.key,d=embrioesSort.dir;
-  rows.sort((a,b)=>{
+  if(k)rows.sort((a,b)=>{
     const av=a[k],bv=b[k];
     if(typeof av==='number'||typeof bv==='number')return ((Number(av)||0)-(Number(bv)||0))*d;
     return String(av??'').localeCompare(String(bv??''),'pt-BR',{numeric:true})*d;
@@ -1441,7 +1461,7 @@ function embrioesRowsFiltered(){
   return rows;
 }
 function embrioesPage(){
-  title('Embriões','Estoque, saída pra fazenda e uso — separado por tipo (Fresco/VIT/DT) e por touro, independente das outras abas.');
+  title('Embriões','Estoque, saída pra fazenda e uso — separado por tipo (Fresco/VIT/DT) e por touro. É estoque de verdade: continua igual entre estações, junto com o Estoque de Sêmen.');
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}
@@ -1450,15 +1470,16 @@ function embrioesPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button><button class="ghost" onclick="document.getElementById('embrioesImportFile').click()">⬆ Subir Excel</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button><button class="ghost" onclick="printEmbrioes()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Saída Total − Usados Total.</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
 }
 function addBlankEmbriao(){
   db.embrioes=db.embrioes||[];
-  db.embrioes.unshift({id:uid('emb'),rgd:'',touro:'',estFresco:0,estVit:0,estDt:0,saidaFresco:0,saidaVit:0,saidaDt:0});
+  db.embrioes.push({id:uid('emb'),rgd:'',touro:'',estFresco:0,estVit:0,estDt:0,saidaFresco:0,saidaVit:0,saidaDt:0});
   save();embrioesPage();
+  setTimeout(()=>{const els=$$('.nav-emb-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankEmbriao=addBlankEmbriao;
 function renderEmbrioesTable(){
   const root=$('#embrioesTable');if(!root)return;
@@ -1584,7 +1605,7 @@ function importEmbrioesExcel(file){
     db.embrioes=db.embrioes||[];
     let novos=0,atualizados=0;
     prepared.forEach(x=>{
-      // agora a chave é RGD + Touro (uma doadora pode ter uma linha por touro usado nela)
+      // a chave é RGD + Touro (uma doadora pode ter uma linha por touro usado nela)
       const existing=db.embrioes.find(e=>norm(e.rgd)===norm(x.rgd)&&norm(e.touro||'')===norm(x.touro||''));
       if(existing){
         // soma ao que já existe (é assim que o estoque acumula entre sessões/OPUs)
@@ -1606,7 +1627,7 @@ function importEmbrioesExcel(file){
   })
 } window.importEmbrioesExcel=importEmbrioesExcel;
 
-/* FIV — RGD Doadora puxa da lista já cadastrada em Embriões; Tipo alimenta os Usados de lá */
+/* FIV — RGD Doadora puxa da lista já cadastrada em Embriões; Tipo alimenta os Usados de lá. Pertence à estação. */
 function embDoadoraDatalist(){
   const list=[...new Set((db.embrioes||[]).map(e=>e.rgd).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}));
   return `<datalist id="embDoadoraList">${list.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist>`;
@@ -1618,43 +1639,45 @@ function touroOptionsForRgd(rgd){
   return [...new Set((db.embrioes||[]).filter(e=>norm(e.rgd)===norm(rgd)&&String(e.touro||'').trim()).map(e=>e.touro))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 }
 function fivRowsFiltered(){
-  let rows=(db.fiv||[]).filter(r=>excelPass('fiv',r));
+  let rows=seasonFiv().filter(r=>excelPass('fiv',r));
   const k=fivSort.key,d=fivSort.dir;
-  rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
+  if(k)rows.sort((a,b)=>String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);
   return rows;
 }
 function fivPage(){
-  title('FIV','Transferência de embriões — RGD Doadora e touro vêm de Embriões; o Tipo alimenta o Usados de lá sozinho.');
+  title('FIV','Transferência de embriões — RGD Doadora e touro vêm de Embriões; o Tipo alimenta o Usados de lá sozinho. Lançamentos pertencem à estação '+activeSeason().name+'.');
   setActions('');
   $('#content').innerHTML=`
   ${bullDatalist()}${embDoadoraDatalist()}<datalist id="fivResultList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="fiv-page">
   <div class="toolbar">
-    <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button></div>
+    <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button><button class="ghost" onclick="openFivEntryModal()">+ Cadastrar em tela</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button><button class="ghost" onclick="printFiv()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem. Pertence à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
 }
 function addBlankFiv(){
   db.fiv=db.fiv||[];
-  db.fiv.unshift({id:uid('fiv'),rgdDoadora:'',sire:'',receptora:'',abcz:'',tipo:'',resultado:''});
+  db.fiv.push({id:uid('fiv'),seasonId:db.meta.activeSeasonId,rgdDoadora:'',sire:'',receptora:'',abcz:'',tipo:'',data:todayISO(),resultado:''});
   save();fivPage();
+  setTimeout(()=>{const els=$$('.nav-fiv-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankFiv=addBlankFiv;
 function renderFivTable(){
   const root=$('#fivTable');if(!root)return;
   const __view=captureViewPosition();
   const rows=fivRowsFiltered();
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
+  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','data','Data')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
   </thead><tbody>${rows.map(r=>`<tr>
   <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-sire" list="fivSireList-${r.id}" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"><datalist id="fivSireList-${r.id}">${touroOptionsForRgd(r.rgdDoadora).map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist></td>
   <td><input class="cell-input nav-fiv-recept" style="min-width:110px" value="${esc(r.receptora||'')}" onkeydown="iatfEnter(event,'nav-fiv-recept')" onchange="editFiv('${r.id}','receptora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-abcz" style="min-width:110px" value="${esc(r.abcz||'')}" onkeydown="iatfEnter(event,'nav-fiv-abcz')" onchange="editFiv('${r.id}','abcz',this.value,this)"></td>
   <td><select class="cell-input nav-fiv-tipo" style="min-width:90px" onkeydown="iatfEnter(event,'nav-fiv-tipo')" onchange="editFiv('${r.id}','tipo',this.value,this)"><option value="">—</option><option ${r.tipo==='Fresco'?'selected':''}>Fresco</option><option ${r.tipo==='VIT'?'selected':''}>VIT</option><option ${r.tipo==='DT'?'selected':''}>DT</option></select></td>
+  <td style="white-space:nowrap"><input class="cell-input nav-fiv-data" type="date" style="width:135px" value="${esc(r.data||'')}" onkeydown="iatfEnter(event,'nav-fiv-data')" onchange="editFiv('${r.id}','data',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-res" list="fivResultList" maxlength="3" style="width:70px;text-align:center" value="${esc(r.resultado||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-fiv-res')" onchange="editFiv('${r.id}','resultado',this.value,this)"></td>
   <td><button class="mini" onclick="deleteFiv('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
@@ -1685,25 +1708,73 @@ function exportFiv(){
   if(!needXLSX())return;
   const rows=fivRowsFiltered().filter(r=>String(r.rgdDoadora||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra exportar.');
-  const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',TIPO:r.tipo||'',RESULTADO:r.resultado||''}));
+  const out=rows.map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',TIPO:r.tipo||'',DATA:r.data||'',RESULTADO:r.resultado||''}));
   jsonToXlsx(out,'fiv.xlsx','FIV');
 } window.exportFiv=exportFiv;
 function printFiv(){
   const rows=fivRowsFiltered().filter(r=>String(r.rgdDoadora||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra imprimir.');
-  const trs=rows.map(r=>`<tr><td>${esc(r.rgdDoadora)}</td><td>${esc(r.sire||'')}</td><td>${esc(r.receptora||'')}</td><td>${esc(r.abcz||'')}</td><td>${esc(r.tipo||'')}</td><td>${esc(r.resultado||'')}</td></tr>`).join('');
-  printHTML('FIV',`<table><thead><tr><th>RGD Doadora</th><th>1º Acasalamento</th><th>Nº Receptora</th><th>Nº ABCZ</th><th>Tipo</th><th>Resultado</th></tr></thead><tbody>${trs}</tbody></table>`);
+  const trs=rows.map(r=>`<tr><td>${esc(r.rgdDoadora)}</td><td>${esc(r.sire||'')}</td><td>${esc(r.receptora||'')}</td><td>${esc(r.abcz||'')}</td><td>${esc(r.tipo||'')}</td><td>${fmtDate(r.data||'')}</td><td>${esc(r.resultado||'')}</td></tr>`).join('');
+  printHTML('FIV',`<table><thead><tr><th>RGD Doadora</th><th>1º Acasalamento</th><th>Nº Receptora</th><th>Nº ABCZ</th><th>Tipo</th><th>Data</th><th>Resultado</th></tr></thead><tbody>${trs}</tbody></table>`);
 } window.printFiv=printFiv;
 
-/* ESTOQUE */
+/* Ficha de cadastro da FIV em tela (alternativa ao "+ Linha em branco") — mesmas regras de
+   validação da tabela: RGD sugere de Embriões, touro sugere só os dessa doadora e precisa
+   existir no Estoque, Resultado precisa ser P/V/PRT se preenchido. */
+function fivModalSireOptions(rgd){
+  const opts=touroOptionsForRgd(rgd);
+  return opts.map(t=>`<option value="${esc(t)}"></option>`).join('');
+}
+function openFivEntryModal(){
+  openModal(`<h2>Nova ficha de FIV</h2>
+  ${embDoadoraDatalist()}
+  <div class="notice green">Segue as mesmas regras da tabela: o touro precisa existir no Estoque, e a lista dele muda de acordo com o RGD Doadora escolhido.</div>
+  <div class="form-grid">
+    <div class="field full"><label>RGD Doadora</label><input id="fmRgd" list="embDoadoraList" class="input" oninput="fivModalRefreshSire()"></div>
+    <div class="field full"><label>1º Acasalamento (touro)</label><input id="fmSire" list="fmSireList" class="input" placeholder="Escolha o RGD Doadora primeiro"><datalist id="fmSireList"></datalist></div>
+    <div class="field"><label>Nº Receptora</label><input id="fmRecept" class="input"></div>
+    <div class="field"><label>Nº ABCZ</label><input id="fmAbcz" class="input"></div>
+    <div class="field"><label>Tipo</label><select id="fmTipo"><option value="">—</option><option>Fresco</option><option>VIT</option><option>DT</option></select></div>
+    <div class="field"><label>Data</label><input id="fmData" type="date" class="input" value="${todayISO()}"></div>
+    <div class="field full"><label>Resultado (opcional)</label><select id="fmResultado"><option value="">—</option><option>P</option><option>V</option><option>PRT</option></select></div>
+  </div>
+  <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveFivEntryModal()">Salvar</button></div>`);
+} window.openFivEntryModal=openFivEntryModal;
+function fivModalRefreshSire(){
+  const rgd=($('#fmRgd')||{value:''}).value;
+  const dl=$('#fmSireList');if(dl)dl.innerHTML=fivModalSireOptions(rgd);
+} window.fivModalRefreshSire=fivModalRefreshSire;
+function saveFivEntryModal(){
+  const rgd=$('#fmRgd').value.trim();
+  if(!rgd)return alert('Informe o RGD Doadora.');
+  const sire=$('#fmSire').value.trim();
+  if(sire && !sireExists(sire))return alert(`O touro "${sire}" não existe no Estoque. Cadastre em Estoque primeiro.`);
+  const resultadoRaw=$('#fmResultado').value;
+  const resultado=normResult(resultadoRaw);
+  if(resultadoRaw && !resultado)return alert('Resultado deve ser P, V ou PRT.');
+  db.fiv=db.fiv||[];
+  db.fiv.push({
+    id:uid('fiv'),seasonId:db.meta.activeSeasonId,
+    rgdDoadora:rgd,sire,
+    receptora:$('#fmRecept').value.trim(),
+    abcz:$('#fmAbcz').value.trim(),
+    tipo:$('#fmTipo').value,
+    data:$('#fmData').value,
+    resultado
+  });
+  save();closeModal();
+  if(page==='fiv')fivPage();
+} window.saveFivEntryModal=saveFivEntryModal;
+
+/* ESTOQUE - SÊMEN */
 function stockRowsFiltered(){
   let rows=db.semen.map(s=>({...s,saldo:stockBalance(s),used:usedEffective(s)})).filter(s=>excelPass('stock',s));
-  const k=stockSort.key,d=stockSort.dir;rows.sort((a,b)=>typeof a[k]==='number'?(a[k]-b[k])*d:String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
+  const k=stockSort.key,d=stockSort.dir;if(k)rows.sort((a,b)=>typeof a[k]==='number'?(a[k]-b[k])*d:String(a[k]??'').localeCompare(String(b[k]??''),'pt-BR',{numeric:true})*d);return rows
 }
 function sortStock(k){if(stockSort.key===k)stockSort.dir*=-1;else stockSort={key:k,dir:1};renderStock()} window.sortStock=sortStock;
 function sf(k,v){stockFilters[k]=v;renderStock()} window.sf=sf;
 function stock(){
-  title('Estoque','Cadastro de sêmen, entradas e saldo automático');setActions('');
+  title('Estoque - Sêmen','Cadastro de sêmen, entradas e saldo automático. É estoque de verdade: continua igual entre estações.');setActions('');
   $('#content').innerHTML=`<div class="stock-page"><div class="toolbar">
   <div class="quick-add">
   <button class="primary" onclick="addBlankStock()">+ Linha em branco</button>
@@ -1736,8 +1807,9 @@ function renderStock(){
   restoreViewPosition(__view);
 }
 function addBlankStock(){
-  db.semen.unshift({id:uid('s'),name:'',rgdTouro:'',tank:'',caneca:'',initial:0,addedDate:'',usedOverride:null,active:true});
-  save();stock()
+  db.semen.push({id:uid('s'),name:'',rgdTouro:'',tank:'',caneca:'',initial:0,addedDate:'',usedOverride:null,active:true});
+  save();stock();
+  setTimeout(()=>{const els=$$('#stockTable .cell-input');const last=els[els.length-9];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankStock=addBlankStock;
 function clearUsedOverride(id){const s=db.semen.find(x=>x.id===id);if(!s)return;s.usedOverride=null;save();renderStock()} window.clearUsedOverride=clearUsedOverride;
 function editStockCell(id,key,val,el){
@@ -1780,10 +1852,10 @@ function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(db.
 function settings(){
   title('Configurações','Estações e cadastros');setActions('');
   $('#content').innerHTML=`<div class="settings-grid">
-  <div class="card"><h3>Estações de monta</h3><div class="sub">Use o mesmo sistema todo ano sem misturar IATFs. Cada estação tem seu próprio cadastro de matrizes.</div>${db.seasons.map(s=>`<div class="inline-stat"><div><strong>${esc(s.name)}</strong><div class="muted">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)} · ${seasonAnimals(s.id).length} matriz(es)</div></div><div class="mini-actions"><button class="mini" onclick="activateSeason('${s.id}')">${s.id===db.meta.activeSeasonId?'Atual':'Usar'}</button><button class="mini" onclick="modalSeason('${s.id}')">Editar</button>${db.seasons.length>1?`<button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="deleteSeason('${s.id}')">Excluir</button>`:''}</div></div>`).join('')}<div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="primary" onclick="modalSeason()">+ Nova estação</button><button class="ghost" onclick="exportSeasonAll()">⬇ Exportar estação (Excel)</button></div><div class="help">A exportação da estação gera um arquivo único com as abas Resumo, IATF, Matrizes e Estoque.</div></div>
+  <div class="card"><h3>Estações de monta</h3><div class="sub">Use o mesmo sistema todo ano sem misturar IATFs. Cada estação nova começa vazia em Matrizes, IATF, Acasalamentos, Não Utilizadas e FIV. <strong>Estoque de Sêmen e Embriões são estoque de verdade e continuam sempre os mesmos</strong>, em todas as estações — nada disso é apagado ao trocar ou criar estação.</div>${db.seasons.map(s=>`<div class="inline-stat"><div><strong>${esc(s.name)}</strong><div class="muted">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)} · ${seasonAnimals(s.id).length} matriz(es) · ${seasonAcasal(s.id).length} acasalamento(s) · ${seasonFiv(s.id).length} FIV</div></div><div class="mini-actions"><button class="mini" onclick="activateSeason('${s.id}')">${s.id===db.meta.activeSeasonId?'Atual':'Usar'}</button><button class="mini" onclick="modalSeason('${s.id}')">Editar</button>${db.seasons.length>1?`<button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="deleteSeason('${s.id}')">Excluir</button>`:''}</div></div>`).join('')}<div class="actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="primary" onclick="modalSeason()">+ Nova estação</button><button class="ghost" onclick="exportSeasonAll()">⬇ Exportar estação (Excel)</button></div><div class="help">A exportação da estação gera um arquivo único com as abas Resumo, IATF, Matrizes e Estoque.</div></div>
   <div class="card"><h3>Dashboard</h3><div class="form-grid"><div class="field"><label>Mínimo de usos para ranking de touros</label><input id="cfgMin" class="input" type="number" min="1" value="${db.settings.bullMinUses}"></div><div class="field"><label>Força do ajuste estatístico</label><input id="cfgPrior" class="input" type="number" min="0" value="${db.settings.bullPriorStrength}"></div></div><div class="actions"><button class="primary" onclick="saveSettings()">Salvar</button></div></div></div>
   <div class="settings-grid section"><div class="card"><h3>Matrizes</h3><div class="sub">Cadastro rápido manual ou em lote, para a estação atual (${esc(activeSeason().name)}).</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="go('animals')">Abrir Matrizes</button><button class="ghost" onclick="document.getElementById('animalImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadAnimalTemplate()">⬇ Modelo</button></div></div>
-  <div class="card"><h3>Estoque / Touros</h3><div class="sub">Cadastre chegada de sêmen manualmente ou em lote.</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="modalStock()">+ Sêmen manual</button><button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo</button></div></div>
+  <div class="card"><h3>Estoque - Sêmen / Touros</h3><div class="sub">Cadastre chegada de sêmen manualmente ou em lote.</div><div class="quick-add" style="margin-top:12px"><button class="ghost" onclick="modalStock()">+ Sêmen manual</button><button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button><button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo</button></div></div>
   <div class="card"><h3>Backup e restauração</h3><div class="sub">Cópia completa de tudo (todas as estações, matrizes, estoque, IATF, exclusões) — não é o mesmo que o Excel da estação, que é só um resumo.</div>
     <div class="quick-add" style="margin-top:12px"><button class="primary" onclick="downloadFullBackup()">⬇ Baixar backup completo (JSON)</button><button class="danger-btn" onclick="document.getElementById('backupRestoreFile').click()">⬆ Restaurar backup</button></div>
     <div class="help" id="lastBackupInfo"></div>
@@ -1840,7 +1912,7 @@ function confirmRestoreBackup(){
   alert('Backup restaurado. Confira os dados.');
 } window.confirmRestoreBackup=confirmRestoreBackup;
 function modalSeason(id=''){const s=id?db.seasons.find(x=>x.id===id):null;openModal(`<h2>${s?'Editar':'Nova'} estação</h2><div class="form-grid"><div class="field full"><label>Nome</label><input id="seName" class="input" value="${esc(s?.name||'')}"></div><div class="field"><label>Data inicial</label><input id="seStart" type="date" class="input" value="${esc(s?.startDate||'')}"></div><div class="field"><label>Data final</label><input id="seEnd" type="date" class="input" value="${esc(s?.endDate||'')}"></div>${s?'':`<div class="field full"><label>Cadastro de matrizes da nova estação</label><select id="seWipe"><option value="copiar" selected>Copiar as matrizes da estação atual (${esc(activeSeason().name)})</option><option value="vazia">Começar vazia (vou subir a lista nova)</option></select><div class="help">Não apaga nada da estação atual — as matrizes de cada estação ficam separadas.</div></div>`}</div>
-  <div class="notice">A nova estação começa sem lançamentos de IATF. O <strong>estoque de sêmen</strong> é sempre mantido e compartilhado entre estações.</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
+  <div class="notice">A nova estação começa <strong>sem</strong> lançamentos de IATF, Acasalamentos, Não Utilizadas nem FIV — tudo isso fica guardado na estação anterior, do jeito que estava. O <strong>Estoque de Sêmen e os Embriões</strong> são sempre mantidos e compartilhados entre estações (não são "por estação").</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
 function saveSeason(id){
   const name=$('#seName').value.trim();if(!name)return alert('Informe o nome.');
   const obj={name,startDate:$('#seStart').value,endDate:$('#seEnd').value,active:true};
@@ -1850,8 +1922,10 @@ function saveSeason(id){
     const oldSid=db.meta.activeSeasonId;
     const n={id:uid('season'),...obj};
     db.seasons.push(n);db.meta.activeSeasonId=n.id;db.cycleDates[n.id]={};
-    // Nunca apaga as matrizes da estação anterior. "Copiar" duplica o rebanho atual para a nova
-    // estação; "Começar vazia" simplesmente não copia nada — a estação antiga fica intacta do mesmo jeito.
+    // Nunca apaga nada da estação anterior. "Copiar" duplica o rebanho atual para a nova estação;
+    // "Começar vazia" simplesmente não copia nada — a estação antiga fica intacta do mesmo jeito.
+    // Acasalamentos, Não Utilizadas e FIV NUNCA são copiados — a estação nova sempre começa vazia
+    // neles (mas o que já existia na estação anterior continua lá, intocado).
     if(copiar){
       seasonAnimals(oldSid).forEach(a=>db.animals.push({...deepClone(a),id:uid('a'),seasonId:n.id}));
     }
@@ -1863,7 +1937,7 @@ function deleteSeason(id){
   const s=db.seasons.find(x=>x.id===id);if(!s)return;
   if(db.seasons.length<=1)return alert('Não é possível excluir a única estação cadastrada.');
   const n=db.iatf.filter(r=>r.seasonId===id).length;
-  if(!confirm(`ATENÇÃO: excluir a estação "${s.name}"?\n\nIsso apaga ${n} lançamento(s) de IATF dessa estação. As matrizes cadastradas nela e o estoque de sêmen NÃO são apagados (as matrizes ficam guardadas, mas sem uma estação ativa vinculada).`))return;
+  if(!confirm(`ATENÇÃO: excluir a estação "${s.name}"?\n\nIsso apaga ${n} lançamento(s) de IATF dessa estação. As matrizes cadastradas nela, os acasalamentos/FIV dela e o estoque de sêmen/embriões NÃO são apagados (ficam guardados, mas sem uma estação ativa vinculada).`))return;
   if(!confirm(`Confirme mais uma vez.\n\nEsta ação NÃO pode ser desfeita. Excluir definitivamente "${s.name}"?`))return;
   db.seasons=db.seasons.filter(x=>x.id!==id);
   db.iatf=db.iatf.filter(r=>r.seasonId!==id);
