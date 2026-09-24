@@ -586,6 +586,7 @@ function restoreViewPosition(pos){
 }
 function render(){
   const __view=captureViewPosition();
+  applyBranding();
   renderSeasonSelector();
   if(page==='dashboard')dashboard();
   else if(page==='animals')animals();
@@ -644,6 +645,7 @@ function gridHighlight(table,r1,c1,r2,c2){
       e.preventDefault();e.stopPropagation();
       gridFillDragging=true;
       gridFillFrom={table,r1:rlo,r2:rhi,c1:clo,c2:chi};
+      if(!gridRafId)gridRafId=requestAnimationFrame(gridAutoScrollAndTrack);
     });
     lastTd.style.position='relative';
     lastTd.appendChild(handle);
@@ -673,25 +675,44 @@ function gridSetValue(cellInput,val){
   return true;
 }
 function gridGetValue(cellInput){return cellInput.value}
+let gridLastMouse=null, gridRafId=null;
+function gridAutoScrollAndTrack(){
+  if(!gridDown && !gridFillDragging){gridRafId=null;return}
+  const table=gridDown?(gridAnchor&&gridAnchor.table):(gridFillFrom&&gridFillFrom.table);
+  if(table && gridLastMouse){
+    const wrap=table.closest('.table-wrap');
+    if(wrap){
+      const rect=wrap.getBoundingClientRect();
+      const margin=40;
+      if(gridLastMouse.y<rect.top+margin) wrap.scrollTop-=Math.max(2,(rect.top+margin-gridLastMouse.y)*0.5);
+      else if(gridLastMouse.y>rect.bottom-margin) wrap.scrollTop+=Math.max(2,(gridLastMouse.y-(rect.bottom-margin))*0.5);
+    }
+    const under=document.elementFromPoint(gridLastMouse.x,gridLastMouse.y);
+    const el=under && under.closest && under.closest('.cell-input');
+    if(el){
+      const info=gridInfo(el);
+      if(info && info.table===table){
+        if(gridDown){
+          gridFocusCell={r:info.r,c:info.c};
+          gridHighlight(gridAnchor.table,gridAnchor.r,gridAnchor.c,info.r,info.c);
+        }else{
+          gridFocusCell={r:info.r,c:info.c};
+          gridHighlight(gridFillFrom.table,gridFillFrom.r1,gridFillFrom.c1,Math.max(info.r,gridFillFrom.r2),gridFillFrom.c2);
+        }
+      }
+    }
+  }
+  gridRafId=requestAnimationFrame(gridAutoScrollAndTrack);
+}
 document.addEventListener('mousedown',e=>{
   const el=e.target.closest && e.target.closest('.cell-input');
   if(!el)return;
   const info=gridInfo(el);if(!info)return;
   gridDown=true;gridAnchor={table:info.table,r:info.r,c:info.c};gridFocusCell={r:info.r,c:info.c};
   gridHighlight(info.table,info.r,info.c,info.r,info.c);
+  if(!gridRafId)gridRafId=requestAnimationFrame(gridAutoScrollAndTrack);
 });
-document.addEventListener('mouseover',e=>{
-  const el=e.target.closest && e.target.closest('.cell-input');
-  if(!el)return;
-  const info=gridInfo(el);if(!info)return;
-  if(gridDown && gridAnchor && info.table===gridAnchor.table){
-    gridFocusCell={r:info.r,c:info.c};
-    gridHighlight(gridAnchor.table,gridAnchor.r,gridAnchor.c,info.r,info.c);
-  }else if(gridFillDragging && gridFillFrom && info.table===gridFillFrom.table){
-    gridFocusCell={r:info.r,c:info.c};
-    gridHighlight(gridFillFrom.table,gridFillFrom.r1,gridFillFrom.c1,Math.max(info.r,gridFillFrom.r2),gridFillFrom.c2);
-  }
-});
+document.addEventListener('mousemove',e=>{gridLastMouse={x:e.clientX,y:e.clientY}});
 document.addEventListener('mouseup',()=>{
   if(gridFillDragging){
     const from=gridFillFrom;
@@ -771,6 +792,45 @@ document.addEventListener('click',e=>{
   }
 });
 /* ===== FIM MINI-EXCEL ============================================================== */
+
+/* ===== ARRASTAR LINHA PRA REORDENAR ===================================================
+   O "⠿" no início de cada linha arrasta ela pra cima/baixo dentro da própria tabela —
+   igual mover uma linha inteira no Excel. Genérico: cada tabela só precisa dizer qual
+   array do banco e qual função de renderizar usar. */
+let rowDragData=null;
+const ROW_DRAG_TABLES={};
+function registerRowDrag(key,getArray,rerender){ROW_DRAG_TABLES[key]={getArray,rerender}}
+function rowDragStart(e,tableKey,id){
+  rowDragData={tableKey,id};
+  e.dataTransfer.effectAllowed='move';
+  try{e.dataTransfer.setData('text/plain',id)}catch(err){}
+}
+function rowDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move'}
+function rowDrop(e,tableKey,targetId){
+  e.preventDefault();
+  if(!rowDragData || rowDragData.tableKey!==tableKey || rowDragData.id===targetId){rowDragData=null;return}
+  const cfg=ROW_DRAG_TABLES[tableKey];if(!cfg)return;
+  const arr=cfg.getArray();
+  const fromIdx=arr.findIndex(x=>x.id===rowDragData.id);
+  const toIdx=arr.findIndex(x=>x.id===targetId);
+  if(fromIdx<0||toIdx<0){rowDragData=null;return}
+  const [moved]=arr.splice(fromIdx,1);
+  arr.splice(toIdx,0,moved);
+  save();
+  cfg.rerender();
+  rowDragData=null;
+}
+window.rowDragStart=rowDragStart;window.rowDragOver=rowDragOver;window.rowDrop=rowDrop;
+/* ===== FIM ARRASTAR LINHA ============================================================ */
+registerRowDrag('animals',()=>db.animals,renderAnimalTable);
+registerRowDrag('iatf',()=>db.iatf,renderIatfRows);
+registerRowDrag('acasal',()=>db.acasalamentos,renderAcasalTable);
+registerRowDrag('embrioes',()=>db.embrioes,renderEmbrioesTable);
+registerRowDrag('fiv',()=>db.fiv,renderFivTable);
+registerRowDrag('stock',()=>db.semen,renderStock);
+function rowHandleTd(tableKey,id){
+  return `<td class="row-handle" draggable="true" title="Arrastar pra reordenar" ondragstart="rowDragStart(event,'${tableKey}','${id}')" style="cursor:grab;text-align:center;color:#aab6ae;width:20px;padding:0;user-select:none">⠿</td>`;
+}
 
 
 /* FILTRO ESTILO EXCEL */
@@ -992,7 +1052,7 @@ function animals(){
     </div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
   </div>
-  <div class="notice green">Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz <strong>não</strong> a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser. Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
+  <div class="notice green">${noticeText('animals')} Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="animalTable"></div>
   </div>`;
   renderAnimalTable()
@@ -1009,8 +1069,9 @@ function renderAnimalTable(){
   const rows=animalRowsFiltered();
   const total=seasonAnimals().length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matrizes exibidas de <strong style="color:#233129;margin:0 4px">${total}</strong> cadastradas</div><div class="table-wrap"><table><thead>
-  <tr>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th>${excelHead('animals','curCycle','IATF atual')}</th><th>${excelHead('animals','createdAt','Criada em')}</th><th></th></tr>
-  </thead><tbody>${rows.map(a=>`<tr>
+  <tr><th></th>${animalSelecting?'<th>✓</th>':''}<th>${excelHead('animals','rgd','RGD')}</th><th>${excelHead('animals','firstSire','1º Acasalamento')}</th><th>${excelHead('animals','category','Categoria')}</th><th>${excelHead('animals','status','Situação')}</th><th>${excelHead('animals','curCycle','IATF atual')}</th><th>${excelHead('animals','createdAt','Criada em')}</th><th></th></tr>
+  </thead><tbody>${rows.map(a=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'animals','${a.id}')">
+  ${rowHandleTd('animals',a.id)}
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input nav-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-rgd')" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
   <td><input class="cell-input nav-sire" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onkeydown="iatfEnter(event,'nav-sire')" onfocus="this.select()" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
@@ -1184,7 +1245,7 @@ function iatfPage(){
       <button class="primary" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
     </div>
   </div>
-  <div class="notice green">Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em <strong>"+ Matriz(es) nesta IATF"</strong>, filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.</div>
+  <div class="notice green">${noticeText('iatf')}</div>
   <div id="iatfTable"></div>
   </div>`;
   renderIatfRows()
@@ -1203,8 +1264,9 @@ function renderIatfRows(){
   const total=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).length;
   const qtdUsada=rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
   root.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 8px;font-size:11px;color:#69746c"><span><strong style="color:#233129">${qtdUsada}</strong> dose(s) de sêmen usadas nesta IATF</span><span><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matriz(es) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong> nesta IATF</span></div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
-  </thead><tbody>${rows.map((r,i)=>`<tr>
+  <tr><th></th><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  </thead><tbody>${rows.map((r,i)=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'iatf','${r.id}')">
+  ${rowHandleTd('iatf',r.id)}
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onfocus="this.select()" onchange="updateIatfSire(this)"></td>
 <td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
@@ -1428,7 +1490,7 @@ function acasalPage(){
       <button onclick="exportAcasalToMatrizesTemplate()" style="border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:#e7b549;color:#153e2c;font-weight:700">⬇ Excel pra subir em Matrizes</button>
     </div>
   </div>
-  <div class="notice green">Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + <strong>1º IATF</strong> (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer. Pertence à estação <strong>${esc(activeSeason().name)}</strong> — cada estação nova começa vazia aqui.</div>
+  <div class="notice green">${noticeText('acasal')} Pertence à estação <strong>${esc(activeSeason().name)}</strong> — cada estação nova começa vazia aqui.</div>
   <div id="acasalTable"></div>
   </div>`;
   renderAcasalTable();
@@ -1445,8 +1507,9 @@ function renderAcasalTable(){
   const rows=acasalRowsFiltered();
   const total=seasonAcasal().length;
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong></div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('acasal','rgd','RGD')}</th><th>${excelHead('acasal','category','Categoria')}</th>${ACASAL_COLS.map(([k,l])=>`<th>${excelHead('acasal',k,l)}</th>`).join('')}<th>${excelHead('acasal','createdAt','Criada em')}</th><th></th></tr>
-  </thead><tbody>${rows.map(a=>`<tr>
+  <tr><th></th><th>${excelHead('acasal','rgd','RGD')}</th><th>${excelHead('acasal','category','Categoria')}</th>${ACASAL_COLS.map(([k,l])=>`<th>${excelHead('acasal',k,l)}</th>`).join('')}<th>${excelHead('acasal','createdAt','Criada em')}</th><th></th></tr>
+  </thead><tbody>${rows.map(a=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'acasal','${a.id}')">
+  ${rowHandleTd('acasal',a.id)}
   <td><input class="cell-input nav-a-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-a-rgd')" onchange="editAcasalCell('${a.id}','rgd',this.value,this)"></td>
   <td><select class="cell-input category-select nav-a-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-a-cat')" onchange="editAcasalCell('${a.id}','category',this.value,this)"><option value="">—</option>${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   ${ACASAL_COLS.map(([k])=>`<td><input class="cell-input nav-a-${k}" list="bullsList" style="min-width:190px" value="${esc(a[k]||'')}" onkeydown="iatfEnter(event,'nav-a-${k}')" onfocus="this.select()" onchange="editAcasalCell('${a.id}','${k}',this.value,this)"></td>`).join('')}
@@ -1646,7 +1709,7 @@ function embrioesPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button><button class="ghost" onclick="document.getElementById('embrioesImportFile').click()">⬆ Subir Excel</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button><button class="ghost" onclick="printEmbrioes()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. <strong>Usados</strong> vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). <strong>Saldo Total</strong> = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">${noticeText('embrioes')}</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
@@ -1663,6 +1726,7 @@ function renderEmbrioesTable(){
   const rows=embrioesRowsFiltered();
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
   <tr>
+    <th rowspan="2" style="position:static"></th>
     <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','rgd','RGD Doadora')}</th>
     <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','touro','Touro')}</th>
     <th colspan="4" class="grp-estoque" style="position:static;text-align:center">ESTOQUE</th>
@@ -1683,7 +1747,8 @@ function renderEmbrioesTable(){
     <th class="grp-usados" style="position:static">${excelHead('embrioes','usoDt','DT')}</th>
     <th class="grp-usados" style="position:static">${excelHead('embrioes','saldoTotal','Saldo Total')}</th>
   </tr>
-  </thead><tbody>${rows.map(e=>`<tr>
+  </thead><tbody>${rows.map(e=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'embrioes','${e.id}')">
+  ${rowHandleTd('embrioes',e.id)}
   <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:110px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
   <td><input class="cell-input nav-emb-touro" list="bullsList" style="min-width:180px" value="${esc(e.touro||'')}" onkeydown="iatfEnter(event,'nav-emb-touro')" onfocus="this.select()" onchange="editEmbriao('${e.id}','touro',this.value,this)"></td>
   <td style="background:#f7fafd"><input class="cell-input nav-emb-estfresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.estFresco||''}" onkeydown="iatfEnter(event,'nav-emb-estfresco')" onchange="editEmbriao('${e.id}','estFresco',this.value,this)"></td>
@@ -1704,7 +1769,7 @@ function renderEmbrioesTable(){
 function embrioesTotalsRowHTML(rows){
   const sum=k=>rows.reduce((a,e)=>a+(Number(e[k])||0),0);
   return `<tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2">
-  <td colspan="2" style="text-align:right">TOTAL</td>
+  <td colspan="3" style="text-align:right">TOTAL</td>
   <td style="text-align:center">${sum('estFresco')}</td><td style="text-align:center">${sum('estVit')}</td><td style="text-align:center">${sum('estDt')}</td><td style="text-align:center">${sum('estTotal')}</td>
   <td style="text-align:center">${sum('saidaFresco')}</td><td style="text-align:center">${sum('saidaVit')}</td><td style="text-align:center">${sum('saidaDt')}</td><td style="text-align:center">${sum('saidaTotal')}</td>
   <td style="text-align:center">${sum('usoFresco')}</td><td style="text-align:center">${sum('usoVit')}</td><td style="text-align:center">${sum('usoDt')}</td><td style="text-align:center">${sum('saldoTotal')}</td>
@@ -1830,7 +1895,7 @@ function fivPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button><button class="ghost" onclick="openFivEntryModal()">+ Cadastrar em tela</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button><button class="ghost" onclick="printFiv()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">RGD Doadora sugere da lista já cadastrada em <strong>Embriões</strong> (cadastre lá primeiro se ainda não existir). <strong>1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões</strong> — troque o RGD que a lista de touros atualiza sozinha. O <strong>Tipo</strong> (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem. Pertence à estação <strong>${esc(activeSeason().name)}</strong>.</div>
+  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">${noticeText('fiv')} Pertence à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
@@ -1858,8 +1923,9 @@ function renderFivTable(){
   const __view=captureViewPosition();
   const rows=fivRowsFiltered();
   root.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c">${fivStatsHTML(rows)}<span><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</span></div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','data','Data')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
-  </thead><tbody>${rows.map(r=>`<tr>
+  <tr><th></th><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','data','Data')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
+  </thead><tbody>${rows.map(r=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'fiv','${r.id}')">
+  ${rowHandleTd('fiv',r.id)}
   <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
   <td><input class="cell-input nav-fiv-sire" list="fivSireList-${r.id}" style="min-width:200px" value="${esc(r.sire)}" onkeydown="iatfEnter(event,'nav-fiv-sire')" onfocus="this.select()" onchange="editFiv('${r.id}','sire',this.value,this)"><datalist id="fivSireList-${r.id}">${touroOptionsForRgd(r.rgdDoadora).map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist></td>
   <td><input class="cell-input nav-fiv-recept" style="min-width:110px" value="${esc(r.receptora||'')}" onkeydown="iatfEnter(event,'nav-fiv-recept')" onchange="editFiv('${r.id}','receptora',this.value,this)"></td>
@@ -1970,7 +2036,7 @@ function stock(){
   <button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
   <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button></div>
   <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
-  <div class="notice green">Clique nas células para editar. <strong>Saldo = Qtd doses − Usado.</strong> O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.</div><div id="stockTable"></div></div>`;renderStock()
+  <div class="notice green">${noticeText('stock')}</div><div id="stockTable"></div></div>`;renderStock()
 }
 function renderStock(){
   const root=$('#stockTable');if(!root)return;
@@ -1979,10 +2045,11 @@ function renderStock(){
   const totalDoses=rows.reduce((a,s)=>a+Number(s.initial||0),0),totalUsado=rows.reduce((a,s)=>a+Number(s.used||0),0),totalSaldo=rows.reduce((a,s)=>a+Number(s.saldo||0),0);
   const fmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> registros no filtro</div><div class="table-wrap"><table><thead>
-  <tr><th>${excelHead('stock','name','Touro')}</th><th>${excelHead('stock','rgdTouro','RGD do touro')}</th><th>${excelHead('stock','tank','Botijão')}</th><th>${excelHead('stock','caneca','Caneca')}</th><th>${excelHead('stock','initial','Qtd doses')}</th><th>${excelHead('stock','used','Usado')}</th><th>${excelHead('stock','saldo','Saldo')}</th><th>${excelHead('stock','addedDate','Data entrada')}</th><th></th></tr>
+  <tr><th></th><th>${excelHead('stock','name','Touro')}</th><th>${excelHead('stock','rgdTouro','RGD do touro')}</th><th>${excelHead('stock','tank','Botijão')}</th><th>${excelHead('stock','caneca','Caneca')}</th><th>${excelHead('stock','initial','Qtd doses')}</th><th>${excelHead('stock','used','Usado')}</th><th>${excelHead('stock','saldo','Saldo')}</th><th>${excelHead('stock','addedDate','Data entrada')}</th><th></th></tr>
   </thead><tbody>${rows.map(s=>{
     const auto=usedAuto(s), manual=!(s.usedOverride===null||s.usedOverride===undefined);
-    return `<tr>
+    return `<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'stock','${s.id}')">
+  ${rowHandleTd('stock',s.id)}
   <td><input class="cell-input" style="min-width:210px;font-weight:600" value="${esc(s.name)}" data-old="${esc(s.name)}" onchange="editStockCell('${s.id}','name',this.value,this)"></td>
   <td><input class="cell-input" value="${esc(s.rgdTouro||'')}" placeholder="—" onchange="editStockCell('${s.id}','rgdTouro',this.value,this)"></td>
   <td><input class="cell-input" value="${esc(s.tank||'')}" onchange="editStockCell('${s.id}','tank',this.value,this)"></td>
@@ -1991,7 +2058,7 @@ function renderStock(){
   <td style="white-space:nowrap"><input class="cell-input" style="width:62px;min-width:62px;text-align:center;${manual?'font-weight:700;color:#a84d2b':''}" inputmode="decimal" value="${s.used}" title="${manual?'Ajustado manualmente. Automático pelas IATFs seria '+auto:'Calculado automaticamente pelas IATFs'}" onchange="editStockCell('${s.id}','used',this.value,this)">${manual?`<button class="mini" style="padding:2px 5px;margin-left:3px" title="Voltar ao cálculo automático (${auto})" onclick="clearUsedOverride('${s.id}')">↺</button>`:''}</td>
   <td class="${s.saldo<=0?'stock-low':'stock-ok'}"><strong>${s.saldo}</strong></td>
   <td><input class="cell-input" type="date" value="${esc(s.addedDate||'')}" onchange="editStockCell('${s.id}','addedDate',this.value,this)"></td>
-  <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`}).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="4" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
+  <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`}).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="5" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
   restoreViewPosition(__view);
 }
 function addBlankStock(){
@@ -2037,6 +2104,69 @@ function saveStockManual(){
 function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(db.animals.some(a=>norm(a.firstSire)===norm(s.name))||db.iatf.some(r=>norm(r.firstSire)===norm(s.name)))return alert('Esse touro está sendo usado em Matrizes/IATF e não pode ser excluído. Edite o nome ou mantenha saldo zero.');if(!confirm('Excluir este cadastro de sêmen?'))return;db.semen=db.semen.filter(x=>x.id!==id);save();renderStock()} window.deleteStock=deleteStock;
 
 /* SETTINGS / SEASONS */
+/* CONFIGURAÇÕES AVANÇADAS — textos das telas, marca do sistema e guia de busca, editáveis
+   sem precisar mexer no código. Servem de "abertura" pra quem for mexer no sistema sem ser
+   pelo código/GitHub. */
+function defaultNoticeTexts(){
+  return {
+    animals:'Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz não a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser.',
+    iatf:'Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em "+ Matriz(es) nesta IATF", filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.',
+    acasal:'Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + 1º IATF (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.',
+    embrioes:'Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. Usados vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). Saldo Total = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).',
+    fiv:'RGD Doadora sugere da lista já cadastrada em Embriões (cadastre lá primeiro se ainda não existir). 1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões — troque o RGD que a lista de touros atualiza sozinha. O Tipo (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.',
+    stock:'Clique nas células para editar. Saldo = Qtd doses − Usado. O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.'
+  };
+}
+function noticeText(key){
+  const custom=(db.settings.noticeTexts||{})[key];
+  return esc(custom!==undefined&&custom!==null?custom:defaultNoticeTexts()[key]);
+}
+function applyBranding(){
+  const name=db.settings.brandName||'IATF MRA';
+  const sub=db.settings.brandSubtitle||'Gestão reprodutiva';
+  $$('.brand strong, .login-brand strong').forEach(el=>el.textContent=name);
+  $$('.brand span, .login-brand span').forEach(el=>el.textContent=sub);
+  document.title=name;
+}
+const HELP_GUIDE=[
+  {kw:['matriz','matrizes','cadastro de vaca','cadastrar vaca'],page:'animals',label:'Matrizes',tip:'Cadastro geral das vacas/matrizes, categoria e situação atual.'},
+  {kw:['iatf','inseminação','inseminar','lançar resultado','prenhez','resultado p v prt'],page:'iatf',label:'IATF',tip:'Lançamento de cada IATF: touro usado, quantidade, resultado (P/V/PRT).'},
+  {kw:['estoque','sêmen','semen','touro','botijão','caneca','doses'],page:'stock',label:'Estoque - Sêmen',tip:'Cadastro de sêmen por touro, quantidade de doses e saldo automático.'},
+  {kw:['acasalamento','planejamento','previsão de touro'],page:'acasal',label:'Acasalamentos',tip:'Planejamento de qual touro vai em cada IATF/FIV — não mexe em Matrizes nem IATF.'},
+  {kw:['não utilizada','nao utilizada','abate','receptora','descarte'],page:'acasal',label:'Acasalamentos → Não utilizadas',tip:'Dentro de Acasalamentos, botão "Não utilizadas" — matrizes que não vão ser acasaladas.'},
+  {kw:['fiv','fertilização in vitro','transferência de embrião'],page:'fiv',label:'FIV',tip:'Transferência de embriões: doadora, touro, receptora, tipo e resultado.'},
+  {kw:['embrião','embriao','opu','doadora','estoque de embrião'],page:'embrioes',label:'Embriões',tip:'Estoque de embriões por doadora/touro — estoque central, saída pra fazenda e usados.'},
+  {kw:['excluída','exclusão','recuperar matriz','matriz apagada'],page:'deleted',label:'Exclusões',tip:'Matrizes excluídas ficam guardadas aqui — dá pra recuperar.'},
+  {kw:['estação','temporada','nova estação','trocar estação'],page:'settings',label:'Configurações → Estações de monta',tip:'Criar/trocar estação de monta. Estoque de Sêmen e Embriões continuam iguais entre estações.'},
+  {kw:['backup','restaurar','recuperar tudo'],page:'settings',label:'Configurações → Backup',tip:'Baixar ou restaurar uma cópia completa de tudo, em JSON.'},
+  {kw:['ranking','melhores touros','índice ajustado'],page:'dashboard',label:'Dashboard',tip:'Gráficos e ranking de touros — ajustável em Configurações → Dashboard.'},
+];
+function helpSearch(q){
+  q=norm(q).toLowerCase();
+  const list=$('#helpResults');if(!list)return;
+  if(!q){list.innerHTML='<div class="muted" style="padding:8px 2px">Digite o que você procura — ex: "estoque", "resultado da IATF", "recuperar matriz excluída"...</div>';return}
+  const hits=HELP_GUIDE.filter(h=>h.kw.some(k=>k.includes(q)||q.includes(k))||h.label.toLowerCase().includes(q)||h.tip.toLowerCase().includes(q));
+  list.innerHTML=hits.length?hits.map(h=>`<div class="inline-stat" style="cursor:pointer" onclick="go('${h.page}')"><div><strong>${esc(h.label)}</strong><div class="muted">${esc(h.tip)}</div></div><div class="mini-actions"><button class="mini">Abrir</button></div></div>`).join(''):'<div class="empty" style="padding:14px">Nada encontrado — tenta outra palavra.</div>';
+} window.helpSearch=helpSearch;
+function saveAdvancedSettings(){
+  db.settings.noticeTexts={
+    animals:$('#txtAnimals').value,
+    iatf:$('#txtIatf').value,
+    acasal:$('#txtAcasal').value,
+    embrioes:$('#txtEmbrioes').value,
+    fiv:$('#txtFiv').value,
+    stock:$('#txtStock').value,
+  };
+  db.settings.brandName=$('#brandName').value.trim()||'IATF MRA';
+  db.settings.brandSubtitle=$('#brandSub').value.trim()||'Gestão reprodutiva';
+  save();
+  applyBranding();
+  settings();
+} window.saveAdvancedSettings=saveAdvancedSettings;
+function restoreNoticeDefault(key,fieldId){
+  const el=$('#'+fieldId);if(el)el.value=defaultNoticeTexts()[key];
+} window.restoreNoticeDefault=restoreNoticeDefault;
+
 function settings(){
   title('Configurações','Estações e cadastros');setActions('');
   $('#content').innerHTML=`<div class="settings-grid">
@@ -2047,8 +2177,32 @@ function settings(){
   <div class="card"><h3>Backup e restauração</h3><div class="sub">Cópia completa de tudo (todas as estações, matrizes, estoque, IATF, exclusões) — não é o mesmo que o Excel da estação, que é só um resumo.</div>
     <div class="quick-add" style="margin-top:12px"><button class="primary" onclick="downloadFullBackup()">⬇ Baixar backup completo (JSON)</button><button class="danger-btn" onclick="document.getElementById('backupRestoreFile').click()">⬆ Restaurar backup</button></div>
     <div class="help" id="lastBackupInfo"></div>
-  </div></div>`
+  </div></div>
+  <div class="section"><h2 style="font-size:16px;margin:0 0 4px">Configurações avançadas</h2><div class="sub" style="margin-bottom:12px">Ajustes que quem não mexe em código também consegue fazer, direto aqui — sem precisar voltar no GitHub.</div></div>
+  <div class="settings-grid">
+    <div class="card">
+      <h3>🔎 Onde encontro...?</h3><div class="sub">Não lembra em qual aba fica algo? Busca aqui.</div>
+      <input class="input" style="width:100%;margin-top:10px" placeholder="ex: estoque, resultado da IATF, matriz excluída..." oninput="helpSearch(this.value)">
+      <div id="helpResults" style="margin-top:10px;max-height:220px;overflow:auto"></div>
+    </div>
+    <div class="card">
+      <h3>Nome do sistema</h3><div class="sub">Aparece no menu lateral e na tela de login.</div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field"><label>Nome</label><input id="brandName" class="input" value="${esc(db.settings.brandName||'IATF MRA')}"></div>
+        <div class="field"><label>Subtítulo</label><input id="brandSub" class="input" value="${esc(db.settings.brandSubtitle||'Gestão reprodutiva')}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card section">
+    <h3>Textos de instrução de cada tela</h3><div class="sub">O aviso verde que aparece em cima de cada tabela. Muda a explicação sem precisar mexer no código.</div>
+    <div class="form-grid" style="margin-top:12px;grid-template-columns:1fr">
+      ${[['txtAnimals','animals','Matrizes'],['txtIatf','iatf','IATF'],['txtAcasal','acasal','Acasalamentos'],['txtEmbrioes','embrioes','Embriões'],['txtFiv','fiv','FIV'],['txtStock','stock','Estoque - Sêmen']].map(([id,key,label])=>`
+      <div class="field"><label>${label} <button class="mini" type="button" style="margin-left:6px" onclick="restoreNoticeDefault('${key}','${id}')">Restaurar padrão</button></label><textarea id="${id}" class="input" style="width:100%;min-height:60px;resize:vertical;font-family:inherit">${esc((db.settings.noticeTexts||{})[key]!==undefined?db.settings.noticeTexts[key]:defaultNoticeTexts()[key])}</textarea></div>`).join('')}
+    </div>
+    <div class="actions"><button class="primary" onclick="saveAdvancedSettings()">Salvar configurações avançadas</button></div>
+  </div>`
   ;{const el=$('#lastBackupInfo');if(el){const last=localStorage.getItem('iatf-last-backup-at');el.textContent=last?`Último backup baixado em ${new Date(last).toLocaleString('pt-BR')}.`:'Você ainda não baixou nenhum backup neste dispositivo.'}}
+  helpSearch('');
 }
 function saveSettings(){db.settings.bullMinUses=Math.max(1,Number($('#cfgMin').value||5));db.settings.bullPriorStrength=Math.max(0,Number($('#cfgPrior').value||5));save();settings()} window.saveSettings=saveSettings;
 
@@ -2136,10 +2290,9 @@ function deleteSeason(id){
 } window.deleteSeason=deleteSeason;
 
 /* Exportar estação completa (todas as abas num Excel só) */
-function exportSeasonAll(){
-  if(!needXLSX())return;
+async function exportSeasonAll(){
+  if(typeof ExcelJS==='undefined'){if(!needXLSX())return}
   const est=activeSeason();
-  const wb=XLSX.utils.book_new();
   const iatfRows=seasonRows().slice().sort((a,b)=>Number(a.cycle)-Number(b.cycle)||String(a.category).localeCompare(b.category)||String(a.rgd).localeCompare(b.rgd,'pt-BR',{numeric:true}))
     .map(r=>({IATF:Number(r.cycle),DATA_IATF:cycleDate(r.cycle),RGD:r.rgd,'1_ACASALAMENTO':r.firstSire,'2_ACASALAMENTO_CURRAL':r.secondSire||'',QTD:r.qty,RESULTADO:r.result,RETORNO:r.return||'',CATEGORIA:r.category}));
   const matRows=seasonAnimals().slice().sort((a,b)=>String(a.rgd).localeCompare(b.rgd,'pt-BR',{numeric:true}))
@@ -2157,9 +2310,18 @@ function exportSeasonAll(){
     {INDICADOR:'Doses em saldo',VALOR:db.semen.reduce((a,s)=>a+stockBalance(s),0)},
     {INDICADOR:'Gerado em',VALOR:new Date().toLocaleString('pt-BR')},
   ];
-  const add=(rows,nome)=>{if(!rows.length)return;const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};XLSX.utils.book_append_sheet(wb,ws,nome)};
+  const fname='estacao_'+est.name.replace(/\W+/g,'_')+'.xlsx';
+  if(typeof ExcelJS==='undefined'){
+    const wb=XLSX.utils.book_new();
+    const add=(rows,nome)=>{if(!rows.length)return;const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};XLSX.utils.book_append_sheet(wb,ws,nome)};
+    add(resumo,'Resumo');add(iatfRows,'IATF');add(matRows,'Matrizes');add(stkRows,'Estoque');
+    downloadWorkbook(wb,fname);
+    return;
+  }
+  const wb=new ExcelJS.Workbook();
+  const add=(rows,nome)=>{if(!rows.length)return;xlsxFillSheet(wb.addWorksheet(nome),rows)};
   add(resumo,'Resumo');add(iatfRows,'IATF');add(matRows,'Matrizes');add(stkRows,'Estoque');
-  downloadWorkbook(wb,'estacao_'+est.name.replace(/\W+/g,'_')+'.xlsx')
+  await downloadExcelJSWorkbook(wb,fname);
 } window.exportSeasonAll=exportSeasonAll;
 
 /* EXCEL */
@@ -2270,7 +2432,59 @@ function showImportErrors(titleText,sub,errs){openModal(`<h2>${esc(titleText)}</
 function exportAnimals(){if(!needXLSX())return;const rows=animalRowsFiltered().map(a=>({RGD:a.rgd,'1_ACASALAMENTO':a.firstSire,CATEGORIA:a.category,SITUACAO:statusLabel(a.status)}));jsonToXlsx(rows,'matrizes_'+activeSeason().name.replace(/\W+/g,'_')+'.xlsx','Matrizes')} window.exportAnimals=exportAnimals;
 function exportIatfRows(rows){if(!needXLSX())return;const out=rows.map(r=>({IATF:Number(r.cycle),DATA_IATF:cycleDate(r.cycle),RGD:r.rgd,'1_ACASALAMENTO':r.firstSire,'2_ACASALAMENTO_CURRAL':r.secondSire||'',QTD:r.qty,RESULTADO:r.result,RETORNO:r.return,CATEGORIA:r.category}));jsonToXlsx(out,'iatf_'+activeSeason().name.replace(/\W+/g,'_')+'.xlsx','IATF')}
 function exportStock(){if(!needXLSX())return;const out=stockRowsFiltered().map(s=>({TOURO:s.name,RGD_TOURO:s.rgdTouro||'',BOTIJAO:s.tank,CANECA:s.caneca,QTD_DOSES:s.initial,UTILIZADO:s.used,SALDO:s.saldo,DATA_ENTRADA:s.addedDate}));jsonToXlsx(out,'estoque_semen.xlsx','Estoque')} window.exportStock=exportStock;
-function jsonToXlsx(rows,name,sheet){const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheet);downloadWorkbook(wb,name)}
+/* Excel bonito: cabeçalho colorido, zebra, borda fina, largura automática e cabeçalho fixo.
+   Todos os botões "Baixar Excel" do sistema já chamam essa função — melhorando aqui, melhora
+   todo mundo de uma vez, sem precisar mexer em cada tela. */
+function xlsxHeaderStyle(cell){
+  cell.font={bold:true,color:{argb:'FFFFFFFF'}};
+  cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F6A49'}};
+  cell.alignment={vertical:'middle',horizontal:'center'};
+}
+function xlsxColumnsFor(rows){
+  const keys=Object.keys(rows[0]);
+  return keys.map(k=>{
+    const headerLabel=String(k).replace(/_/g,' ');
+    const maxLen=Math.max(headerLabel.length,...rows.map(r=>String(r[k]??'').length));
+    return {header:headerLabel,key:k,width:Math.min(42,Math.max(10,maxLen+3))};
+  });
+}
+function xlsxFillSheet(ws,rows){
+  ws.columns=xlsxColumnsFor(rows);
+  const headerRow=ws.getRow(1);
+  headerRow.eachCell(xlsxHeaderStyle);
+  headerRow.height=20;
+  rows.forEach((r,i)=>{
+    const row=ws.addRow(r);
+    row.eachCell(c=>{
+      if(i%2===1)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F6F4'}};
+      c.border={top:{style:'thin',color:{argb:'FFE3E7E4'}},bottom:{style:'thin',color:{argb:'FFE3E7E4'}},left:{style:'thin',color:{argb:'FFE3E7E4'}},right:{style:'thin',color:{argb:'FFE3E7E4'}}};
+      c.alignment={vertical:'middle'};
+    });
+  });
+  ws.views=[{state:'frozen',ySplit:1}];
+  ws.autoFilter={from:{row:1,column:1},to:{row:1,column:ws.columns.length}};
+}
+async function downloadExcelJSWorkbook(wb,name){
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+async function jsonToXlsx(rows,name,sheet){
+  if(!rows||!rows.length)return alert('Nenhuma linha pra exportar.');
+  if(typeof ExcelJS==='undefined'){
+    // biblioteca avançada não carregou — cai pro Excel simples, sem travar o download
+    if(!needXLSX())return;
+    const ws=XLSX.utils.json_to_sheet(rows);ws['!autofilter']={ref:ws['!ref']};
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheet);downloadWorkbook(wb,name);
+    return;
+  }
+  const wb=new ExcelJS.Workbook();
+  xlsxFillSheet(wb.addWorksheet(sheet||'Dados'),rows);
+  await downloadExcelJSWorkbook(wb,name);
+}
+window.jsonToXlsx=jsonToXlsx;
 
 /* PRINT */
 function printHTML(titleText,body){
