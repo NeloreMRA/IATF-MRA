@@ -61,6 +61,7 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .date-box{display:flex;align-items:center;gap:7px;background:#edf6f0;border:1px solid #cfe3d5;border-radius:8px;padding:6px 9px}.date-box label{font-size:12px;font-weight:650}
 .iatf-category-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #d9dfda;border-radius:8px;padding:6px 9px}.iatf-category-box>span{font-size:11px;font-weight:700;color:#657169;margin-right:2px}.iatf-cat-check{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:7px;cursor:pointer;font-size:12px;user-select:none}.iatf-cat-check input{margin:0}.iatf-cat-check.vacas{background:#e7f0ff;color:#245a9c}.iatf-cat-check.primi{background:#fff0da;color:#8a5919}.iatf-cat-check.preco{background:#efe8ff;color:#6743a0}
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.clickable{cursor:pointer}
+.help-btn{margin-left:10px;width:24px;height:24px;border-radius:50%;border:1px solid #cfe5d5;background:#eff8f2;color:#1f6a49;font-weight:800;font-size:13px;cursor:pointer;vertical-align:middle;line-height:1;padding:0}.help-btn:hover{background:#1f6a49;color:#fff}
 .help{font-size:11px;color:#657169;margin-top:4px;line-height:1.4}.error-list{max-height:260px;overflow:auto;background:#fff8f6;border:1px solid #f1c9c1;padding:10px;border-radius:8px;font-size:12px}
 
 /* Filtros estilo Excel */
@@ -165,7 +166,7 @@ body.authenticated #loginScreen{display:none}
 </aside>
 <main>
 <header>
-  <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub"></p></div>
+  <div><h1><span id="pageTitle">Dashboard</span><button id="helpBtn" class="help-btn" type="button" hidden onclick="openPageHelp()" title="Como funciona esta tela">?</button></h1><p id="pageSub"></p></div>
   <div class="header-actions"><button id="undoBtn" class="ghost" type="button" onclick="undoLastChange()" title="Desfazer última alteração (Ctrl+Z)" disabled>↶ Desfazer</button><div id="pageActions"></div></div>
 </header>
 <section id="content"></section>
@@ -531,7 +532,7 @@ function bind(){
   $$('.nav').forEach(b=>b.onclick=()=>go(b.dataset.page));
   $('#modalClose').onclick=closeModal;
   $('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
-  $('#seasonHeader').onchange=e=>{db.meta.activeSeasonId=e.target.value;save();render()};
+  $('#seasonHeader').onchange=e=>activateSeason(e.target.value);
   $('#animalImportFile').onchange=e=>{importAnimalsExcel(e.target.files[0]);e.target.value=''};
   $('#stockImportFile').onchange=e=>{importStockExcel(e.target.files[0]);e.target.value=''};
   $('#backupRestoreFile').onchange=e=>{restoreFullBackup(e.target.files[0]);e.target.value=''};
@@ -599,6 +600,7 @@ function render(){
   else if(page==='iatf')iatfPage();
   else if(page==='stock')stock();
   else settings();
+  {const hb=$('#helpBtn');if(hb)hb.hidden=!defaultNoticeTexts()[page]}
   restoreViewPosition(__view);
 }
 function setActions(h){$('#pageActions').innerHTML=h||''}
@@ -1058,8 +1060,7 @@ function animals(){
     </div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportAnimals()">⬇ Excel</button></div>
   </div>
-  <div class="notice green">${noticeText('animals')} Estas matrizes pertencem somente à estação <strong>${esc(activeSeason().name)}</strong>.</div>
-  <div id="animalTable"></div>
+    <div id="animalTable"></div>
   </div>`;
   renderAnimalTable()
 }
@@ -1151,7 +1152,6 @@ function deletedAnimalsPage(){
   title('Exclusões','Matrizes excluídas na '+activeSeason().name+' — recupere em caso de exclusão por engano');setActions('');
   const rows=(db.deletedAnimals||[]).filter(d=>d.animal&&d.animal.seasonId===db.meta.activeSeasonId).slice().sort((a,b)=>String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
   $('#content').innerHTML=`<div class="animals-page">
-    <div class="notice green">Ao excluir uma matriz, o cadastro e os lançamentos de IATF dela ficam guardados aqui. <strong>Recuperar</strong> devolve tudo para o sistema.</div>
     <div style="display:flex;justify-content:flex-end;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> exclusão(ões) armazenada(s)</div>
     ${rows.length?`<div class="table-wrap"><table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>Categoria</th><th>Excluída em</th><th>IATFs guardadas</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td><strong>${esc(d.animal?.rgd||'')}</strong></td><td>${esc(d.animal?.firstSire||'')}</td><td><span class="badge ${catClass(d.animal?.category)}">${esc(d.animal?.category||'')}</span></td><td>${d.deletedAt?new Date(d.deletedAt).toLocaleString('pt-BR'):''}</td><td>${(d.iatf||[]).length}</td><td><button class="primary" style="padding:5px 8px" onclick="restoreDeletedAnimal('${d.id}')">Recuperar</button> <button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="purgeDeletedAnimal('${d.id}')">Excluir definitivo</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Nenhuma matriz excluída nesta estação.</div>`}
   </div>`;
@@ -1251,7 +1251,6 @@ function iatfPage(){
       <button class="primary" onclick="quickAddAnimalToCycle()">+ Matriz(es) nesta IATF</button><button class="ghost" onclick="openIatfExcluded()">Excluídas desta IATF (${iatfExcludedCurrent().length})</button><button class="ghost" onclick="openPrtPanel()">⟳ PRTs (${prtAnimals().length})</button>
     </div>
   </div>
-  <div class="notice green">${noticeText('iatf')}</div>
   <div id="iatfTable"></div>
   </div>`;
   renderIatfRows()
@@ -1284,7 +1283,9 @@ function renderIatfRows(){
   <td><button class="mini" onclick="deleteIatf('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
 }
-function iatfEnter(e,cls){if(e.key!=='Enter')return;e.preventDefault();e.target.blur();const els=$$('.'+cls);const i=els.indexOf(e.target);if(els[i+1]){els[i+1].focus();if(typeof els[i+1].select==='function')els[i+1].select()}} window.iatfEnter=iatfEnter;
+// Enter desce pra mesma coluna na linha de baixo. A posição é guardada ANTES de confirmar a célula,
+// porque algumas telas (ex: Estoque) redesenham a tabela ao salvar e a célula antiga some.
+function iatfEnter(e,cls){if(e.key!=='Enter')return;e.preventDefault();const i=$$('.'+cls).indexOf(e.target);e.target.blur();const els=$$('.'+cls);const nx=els[i+1];if(i>=0&&nx){nx.focus();if(typeof nx.select==='function')nx.select()}} window.iatfEnter=iatfEnter;
 function updateIatfCell(id,key,val){const r=db.iatf.find(x=>x.id===id);if(!r)return;r[key]=key==='qty'?Number(String(val).replace(',','.'))||0:val;save()} window.updateIatfCell=updateIatfCell;
 function updateIatfSire(el){
   const val=el.value.trim();
@@ -1454,20 +1455,19 @@ function openIatfOutput(mode){
   <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option>${c}</option>`).join('')}</select></div>
   <div class="field"><label>Número da IATF</label><select id="outCycle"><option value="">Todas</option>${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
   <div class="field"><label>Resultado</label><select id="outResult"><option value="">Todos</option><option>P</option><option>V</option><option>PRT</option></select></div>
-  <div class="field"><label>Filtros da tela</label><select id="outCurrent"><option value="yes">Respeitar filtros atuais</option><option value="no">Ignorar filtros da tabela</option></select></div></div>
+  <div class="field"><label>Filtros da tela</label><select id="outCurrent"><option value="yes">Respeitar filtros das colunas (▼)</option><option value="no">Ignorar filtros da tabela</option></select></div></div>
+  <div class="help">Com "Todas" as IATFs, sai uma lista só, em ordem de IATF → categoria → RGD, com a coluna IATF e a data de cada uma.</div>
   <div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="runIatfOutput('${mode}')">${mode==='print'?'Imprimir':'Exportar Excel'}</button></div>`)
 } window.openIatfOutput=openIatfOutput;
 function outputIatfRows(){
   const cat=$('#outCat').value,cy=$('#outCycle').value,res=$('#outResult').value,current=$('#outCurrent').value==='yes';
-  if(current){
-    let rows=iatfRowsFiltered();
-    if(cat)rows=rows.filter(r=>r.category===cat);
-    if(cy)rows=rows.filter(r=>Number(r.cycle)===Number(cy));
-    if(res)rows=rows.filter(r=>normResult(r.result)===res);
-    return rows;
+  // Mesma IATF que está na tela + "respeitar filtros": sai exatamente como a tabela (filtros e ordem).
+  if(current&&Number(cy)===Number(iatfCycle)){
+    return iatfRowsFiltered().filter(r=>(!cat||r.category===cat)&&(!res||normResult(r.result)===res));
   }
-  let rows=seasonRows().filter(r=>(!cat||r.category===cat)&&(!cy||Number(r.cycle)===Number(cy))&&(!res||normResult(r.result)===res));
-  return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||a.category.localeCompare(b.category)||a.rgd.localeCompare(b.rgd,'pt-BR',{numeric:true}))
+  // Outra IATF ou "Todas": os filtros das colunas (▼) valem pra todas as IATFs escolhidas.
+  const rows=seasonRows().filter(r=>(!current||excelPass('iatf',r))&&(!cat||r.category===cat)&&(!cy||Number(r.cycle)===Number(cy))&&(!res||normResult(r.result)===res));
+  return rows.sort((a,b)=>Number(a.cycle)-Number(b.cycle)||String(a.category).localeCompare(String(b.category))||String(a.rgd).localeCompare(String(b.rgd),'pt-BR',{numeric:true}))
 }
 function runIatfOutput(mode){const rows=outputIatfRows();if(!rows.length)return alert('Nenhum registro para esta seleção.');if(mode==='export')exportIatfRows(rows);else printIatfRows(rows);closeModal()} window.runIatfOutput=runIatfOutput;
 
@@ -1497,7 +1497,6 @@ function acasalPage(){
       <button onclick="exportAcasalToMatrizesTemplate()" style="border:0;border-radius:8px;padding:9px 13px;cursor:pointer;background:#e7b549;color:#153e2c;font-weight:700">⬇ Excel pra subir em Matrizes</button>
     </div>
   </div>
-  <div class="notice green">${noticeText('acasal')} Pertence à estação <strong>${esc(activeSeason().name)}</strong> — cada estação nova começa vazia aqui.</div>
   <div id="acasalTable"></div>
   </div>`;
   renderAcasalTable();
@@ -1716,7 +1715,6 @@ function embrioesPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankEmbriao()">+ Linha em branco</button><button class="ghost" onclick="document.getElementById('embrioesImportFile').click()">⬆ Subir Excel</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportEmbrioes()">⬇ Excel</button><button class="ghost" onclick="printEmbrioes()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">${noticeText('embrioes')}</div>
   <div id="embrioesTable"></div>
   </div>`;
   renderEmbrioesTable();
@@ -1902,7 +1900,6 @@ function fivPage(){
     <div class="quick-add"><button class="primary" onclick="addBlankFiv()">+ Linha em branco</button><button class="ghost" onclick="openFivEntryModal()">+ Cadastrar em tela</button></div>
     <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportFiv()">⬇ Excel</button><button class="ghost" onclick="printFiv()">🖨 Imprimir</button></div>
   </div>
-  <div class="notice green" style="background:#f6fbf8;border-color:#e2efe6;color:#4a7861">${noticeText('fiv')} Pertence à estação <strong>${esc(activeSeason().name)}</strong>.</div>
   <div id="fivTable"></div>
   </div>`;
   renderFivTable();
@@ -2043,7 +2040,7 @@ function stock(){
   <button class="ghost" onclick="document.getElementById('stockImportFile').click()">⬆ Subir Excel</button>
   <button class="ghost" onclick="downloadStockTemplate()">⬇ Modelo Excel</button></div>
   <div class="out-actions">${zoomControlsHTML()}<button class="ghost" onclick="exportStock()">⬇ Excel</button><button class="ghost" onclick="openStockPrint()">🖨 Imprimir</button></div></div>
-  <div class="notice green">${noticeText('stock')}</div><div id="stockTable"></div></div>`;renderStock()
+  <div id="stockTable"></div></div>`;renderStock()
 }
 function renderStock(){
   const root=$('#stockTable');if(!root)return;
@@ -2057,21 +2054,21 @@ function renderStock(){
     const auto=usedAuto(s), manual=!(s.usedOverride===null||s.usedOverride===undefined);
     return `<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'stock','${s.id}')">
   ${rowHandleTd('stock',s.id)}
-  <td><input class="cell-input" style="min-width:210px;font-weight:600" value="${esc(s.name)}" data-old="${esc(s.name)}" onchange="editStockCell('${s.id}','name',this.value,this)"></td>
-  <td><input class="cell-input" value="${esc(s.rgdTouro||'')}" placeholder="—" onchange="editStockCell('${s.id}','rgdTouro',this.value,this)"></td>
-  <td><input class="cell-input" value="${esc(s.tank||'')}" onchange="editStockCell('${s.id}','tank',this.value,this)"></td>
-  <td><input class="cell-input" value="${esc(s.caneca||'')}" onchange="editStockCell('${s.id}','caneca',this.value,this)"></td>
-  <td><input class="cell-input" inputmode="decimal" value="${Number(s.initial||0)}" onchange="editStockCell('${s.id}','initial',this.value,this)"></td>
-  <td style="white-space:nowrap"><input class="cell-input" style="width:62px;min-width:62px;text-align:center;${manual?'font-weight:700;color:#a84d2b':''}" inputmode="decimal" value="${s.used}" title="${manual?'Ajustado manualmente. Automático pelas IATFs seria '+auto:'Calculado automaticamente pelas IATFs'}" onchange="editStockCell('${s.id}','used',this.value,this)">${manual?`<button class="mini" style="padding:2px 5px;margin-left:3px" title="Voltar ao cálculo automático (${auto})" onclick="clearUsedOverride('${s.id}')">↺</button>`:''}</td>
+  <td><input class="cell-input nav-st-name" style="min-width:210px;font-weight:600" value="${esc(s.name)}" data-old="${esc(s.name)}" onkeydown="iatfEnter(event,'nav-st-name')" onchange="editStockCell('${s.id}','name',this.value,this)"></td>
+  <td><input class="cell-input nav-st-rgd" value="${esc(s.rgdTouro||'')}" placeholder="—" onkeydown="iatfEnter(event,'nav-st-rgd')" onchange="editStockCell('${s.id}','rgdTouro',this.value,this)"></td>
+  <td><input class="cell-input nav-st-tank" value="${esc(s.tank||'')}" onkeydown="iatfEnter(event,'nav-st-tank')" onchange="editStockCell('${s.id}','tank',this.value,this)"></td>
+  <td><input class="cell-input nav-st-caneca" value="${esc(s.caneca||'')}" onkeydown="iatfEnter(event,'nav-st-caneca')" onchange="editStockCell('${s.id}','caneca',this.value,this)"></td>
+  <td><input class="cell-input nav-st-initial" inputmode="decimal" value="${Number(s.initial||0)}" onkeydown="iatfEnter(event,'nav-st-initial')" onchange="editStockCell('${s.id}','initial',this.value,this)"></td>
+  <td style="white-space:nowrap"><input class="cell-input nav-st-used" style="width:62px;min-width:62px;text-align:center;${manual?'font-weight:700;color:#a84d2b':''}" inputmode="decimal" value="${s.used}" title="${manual?'Ajustado manualmente. Automático pelas IATFs seria '+auto:'Calculado automaticamente pelas IATFs'}" onkeydown="iatfEnter(event,'nav-st-used')" onchange="editStockCell('${s.id}','used',this.value,this)">${manual?`<button class="mini" style="padding:2px 5px;margin-left:3px" title="Voltar ao cálculo automático (${auto})" onclick="clearUsedOverride('${s.id}')">↺</button>`:''}</td>
   <td class="${s.saldo<=0?'stock-low':'stock-ok'}"><strong>${s.saldo}</strong></td>
-  <td><input class="cell-input" type="date" value="${esc(s.addedDate||'')}" onchange="editStockCell('${s.id}','addedDate',this.value,this)"></td>
+  <td><input class="cell-input nav-st-date" type="date" value="${esc(s.addedDate||'')}" onkeydown="iatfEnter(event,'nav-st-date')" onchange="editStockCell('${s.id}','addedDate',this.value,this)"></td>
   <td><button class="mini" onclick="deleteStock('${s.id}')">Excluir</button></td></tr>`}).join('')}</tbody><tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="5" style="text-align:right">TOTAL</td><td>${fmt(totalDoses)}</td><td>${fmt(totalUsado)}</td><td>${fmt(totalSaldo)}</td><td></td><td></td></tr></tfoot></table></div>`;
   restoreViewPosition(__view);
 }
 function addBlankStock(){
   db.semen.push({id:uid('s'),name:'',rgdTouro:'',tank:'',caneca:'',initial:0,addedDate:'',usedOverride:null,active:true});
   save();stock();
-  setTimeout(()=>{const els=$$('#stockTable .cell-input');const last=els[els.length-9];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
+  setTimeout(()=>{const els=$$('.nav-st-name');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankStock=addBlankStock;
 function clearUsedOverride(id){const s=db.semen.find(x=>x.id===id);if(!s)return;s.usedOverride=null;save();renderStock()} window.clearUsedOverride=clearUsedOverride;
 function editStockCell(id,key,val,el){
@@ -2129,7 +2126,7 @@ function saveStockManual(){
 function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(sireInUse(s.name))return alert('Esse touro está sendo usado em Matrizes/IATF/Acasalamentos/Embriões/FIV e não pode ser excluído. Edite o nome ou mantenha saldo zero.');if(!confirm('Excluir este cadastro de sêmen?'))return;db.semen=db.semen.filter(x=>x.id!==id);save();renderStock()} window.deleteStock=deleteStock;
 
 /* SETTINGS / SEASONS */
-/* Textos do aviso verde no topo de cada tabela */
+/* Explicação de cada tela — abre no botão "?" ao lado do título (antes era um aviso verde fixo) */
 function defaultNoticeTexts(){
   return {
     animals:'Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz não a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser.',
@@ -2137,10 +2134,16 @@ function defaultNoticeTexts(){
     acasal:'Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + 1º IATF (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.',
     embrioes:'Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. Usados vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). Saldo Total = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).',
     fiv:'RGD Doadora sugere da lista já cadastrada em Embriões (cadastre lá primeiro se ainda não existir). 1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões — troque o RGD que a lista de touros atualiza sozinha. O Tipo (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.',
+    deleted:'Ao excluir uma matriz, o cadastro e os lançamentos de IATF dela ficam guardados aqui. Recuperar devolve tudo para o sistema.',
     stock:'Clique nas células para editar. Saldo = Qtd doses − Usado. O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.'
   };
 }
-function noticeText(key){return esc(defaultNoticeTexts()[key]||'')}
+function openPageHelp(){
+  const txt=defaultNoticeTexts()[page];if(!txt)return;
+  const est=esc(activeSeason().name);
+  const scope={animals:`Estas matrizes pertencem somente à estação <strong>${est}</strong>.`,iatf:`Lançamentos da estação <strong>${est}</strong>.`,acasal:`Pertence à estação <strong>${est}</strong> — cada estação nova começa vazia aqui.`,fiv:`Pertence à estação <strong>${est}</strong>.`,deleted:`Mostra só as exclusões da estação <strong>${est}</strong>.`,stock:'É estoque de verdade: é o mesmo em todas as estações.',embrioes:'É estoque de verdade: é o mesmo em todas as estações.'}[page]||'';
+  openModal(`<h2>Como funciona: ${esc($('#pageTitle').textContent)}</h2><div class="notice green" style="font-size:13px;line-height:1.5">${esc(txt)}${scope?'<br><br>'+scope:''}</div><div class="actions"><button class="primary" onclick="closeModal()">Entendi</button></div>`);
+} window.openPageHelp=openPageHelp;
 function settings(){
   title('Configurações','Estações e cadastros');setActions('');
   $('#content').innerHTML=`<div class="settings-grid">
@@ -2203,28 +2206,24 @@ function confirmRestoreBackup(){
   render();
   alert('Backup restaurado. Confira os dados.');
 } window.confirmRestoreBackup=confirmRestoreBackup;
-function modalSeason(id=''){const s=id?db.seasons.find(x=>x.id===id):null;openModal(`<h2>${s?'Editar':'Nova'} estação</h2><div class="form-grid"><div class="field full"><label>Nome</label><input id="seName" class="input" value="${esc(s?.name||'')}"></div><div class="field"><label>Data inicial</label><input id="seStart" type="date" class="input" value="${esc(s?.startDate||'')}"></div><div class="field"><label>Data final</label><input id="seEnd" type="date" class="input" value="${esc(s?.endDate||'')}"></div>${s?'':`<div class="field full"><label>Cadastro de matrizes da nova estação</label><select id="seWipe"><option value="copiar" selected>Copiar as matrizes da estação atual (${esc(activeSeason().name)})</option><option value="vazia">Começar vazia (vou subir a lista nova)</option></select><div class="help">Não apaga nada da estação atual — as matrizes de cada estação ficam separadas.</div></div>`}</div>
-  <div class="notice">A nova estação começa <strong>sem</strong> lançamentos de IATF, Acasalamentos, Não Utilizadas nem FIV — tudo isso fica guardado na estação anterior, do jeito que estava. O <strong>Estoque de Sêmen e os Embriões</strong> são sempre mantidos e compartilhados entre estações (não são "por estação").</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
+function modalSeason(id=''){const s=id?db.seasons.find(x=>x.id===id):null;openModal(`<h2>${s?'Editar':'Nova'} estação</h2><div class="form-grid"><div class="field full"><label>Nome</label><input id="seName" class="input" value="${esc(s?.name||'')}"></div><div class="field"><label>Data inicial</label><input id="seStart" type="date" class="input" value="${esc(s?.startDate||'')}"></div><div class="field"><label>Data final</label><input id="seEnd" type="date" class="input" value="${esc(s?.endDate||'')}"></div></div>
+  <div class="notice">A nova estação começa <strong>totalmente em branco</strong>: Matrizes, IATF, Acasalamentos, Não Utilizadas, FIV e Exclusões — como um Excel novo. Nada é apagado nem copiado da estação anterior, que continua guardada do jeito que estava. O <strong>Estoque de Sêmen e os Embriões</strong> são sempre mantidos e compartilhados entre estações (não são "por estação").</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveSeason('${id}')">Salvar</button></div>`)} window.modalSeason=modalSeason;
 function saveSeason(id){
   const name=$('#seName').value.trim();if(!name)return alert('Informe o nome.');
   const obj={name,startDate:$('#seStart').value,endDate:$('#seEnd').value,active:true};
   if(id){Object.assign(db.seasons.find(x=>x.id===id),obj)}
   else{
-    const copiar=($('#seWipe')||{value:'copiar'}).value==='copiar';
-    const oldSid=db.meta.activeSeasonId;
     const n={id:uid('season'),...obj};
     db.seasons.push(n);db.meta.activeSeasonId=n.id;db.cycleDates[n.id]={};
-    // Nunca apaga nada da estação anterior. "Copiar" duplica o rebanho atual para a nova estação;
-    // "Começar vazia" simplesmente não copia nada — a estação antiga fica intacta do mesmo jeito.
-    // Acasalamentos, Não Utilizadas e FIV NUNCA são copiados — a estação nova sempre começa vazia
-    // neles (mas o que já existia na estação anterior continua lá, intocado).
-    if(copiar){
-      seasonAnimals(oldSid).forEach(a=>db.animals.push({...deepClone(a),id:uid('a'),seasonId:n.id}));
-    }
+    // Estação nova começa em branco: não copia nem apaga nada da anterior. Só Estoque de Sêmen
+    // e Embriões são compartilhados (não têm estação).
+    resetSeasonView();
   }
   save();closeModal();settings();renderSeasonSelector()
 } window.saveSeason=saveSeason;
-function activateSeason(id){db.meta.activeSeasonId=id;save();render()} window.activateSeason=activateSeason;
+// Ao trocar de estação, limpa filtros/seleções da tela pra nada da estação anterior "vazar" pra nova.
+function resetSeasonView(){Object.keys(excelFilters).forEach(k=>excelFilters[k]={});iatfCycle=1;iatfCategory='';animalSelecting=false;animalSelected.clear()}
+function activateSeason(id){if(id!==db.meta.activeSeasonId)resetSeasonView();db.meta.activeSeasonId=id;save();render()} window.activateSeason=activateSeason;
 function deleteSeason(id){
   const s=db.seasons.find(x=>x.id===id);if(!s)return;
   if(db.seasons.length<=1)return alert('Não é possível excluir a única estação cadastrada.');
@@ -2426,15 +2425,13 @@ function printHTML(titleText,body){
   w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}.card,.chart{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi .value{font-size:20px;font-weight:bold}.sub,.muted{font-size:10px;color:#666}.bar-track{height:8px;background:#eee}.bar-fill{height:100%;background:#555}.rank-row,.inline-stat,.bar-row{display:flex;justify-content:space-between;gap:10px;padding:5px;border-bottom:1px solid #eee}.actions,.quick-add,.toolbar,.filter-row,button,input,select{display:none!important}@media print{body{padding:0}}</style></head><body><h1>${esc(titleText)}</h1>${body}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},200)
 }
 function printIatfRows(rows){
-  const ciclo=rows[0]?.cycle||iatfCycle;
-  const data=fmtDate(cycleDate(ciclo));
-
-  const trs=rows.map(r=>`<tr><td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px">${esc(stockCaneca(r.firstSire))}</td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
-
-  printHTML(
-    `${ciclo}ª IATF - ${data} - ${activeSeason().name}`,
-    `<table><thead><tr><th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th style="width:60px">Qtd</th><th style="width:60px">Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`
-  )
+  const ciclos=[...new Set(rows.map(r=>Number(r.cycle)))];
+  const varias=ciclos.length>1;
+  const ciclo=ciclos[0]||iatfCycle;
+  const titulo=varias?`IATFs ${ciclos.sort((a,b)=>a-b).map(c=>c+'ª').join(', ')} - ${activeSeason().name}`:`${ciclo}ª IATF - ${fmtDate(cycleDate(ciclo))} - ${activeSeason().name}`;
+  const colIatf=varias?'<th style="width:70px">IATF</th>':'';
+  const trs=rows.map(r=>`<tr>${varias?`<td>${Number(r.cycle)}ª <span style="color:#666">${fmtDate(cycleDate(r.cycle))}</span></td>`:''}<td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px">${esc(stockCaneca(r.firstSire))}</td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${esc(r.return||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+  printHTML(titulo,`<table><thead><tr>${colIatf}<th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th style="width:60px">Qtd</th><th style="width:60px">Result.</th><th>Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
 }
 function openStockPrint(){
   openModal(`<h2>Imprimir estoque</h2><div class="form-grid">
