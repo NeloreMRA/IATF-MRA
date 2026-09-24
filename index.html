@@ -108,6 +108,9 @@ td.cell-selected{background:#dbe9ff!important}
 .category-select.cat-vacas{background:#e7f0ff!important;color:#245a9c!important;font-weight:700}
 .category-select.cat-primi{background:#fff0da!important;color:#8a5919!important;font-weight:700}
 .category-select.cat-preco{background:#efe8ff!important;color:#6743a0!important;font-weight:700}
+.cat-c3{background:#e3f4f4;color:#1d6b6b}.cat-c4{background:#fde8f1;color:#9a2f63}.cat-c5{background:#eef3dc;color:#566b1c}.cat-none{background:#eff2f0;color:#667068}
+.category-select.cat-c3{background:#e3f4f4!important;color:#1d6b6b!important;font-weight:700}.category-select.cat-c4{background:#fde8f1!important;color:#9a2f63!important;font-weight:700}.category-select.cat-c5{background:#eef3dc!important;color:#566b1c!important;font-weight:700}
+.list-edit-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}.list-edit-row .input{flex:1;min-width:0}
 
 @media(max-width:1050px){.cards{grid-template-columns:repeat(2,1fr)}.chart-grid,.settings-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app{grid-template-columns:72px 1fr}.sidebar{padding:18px 9px}.brand>div:not(.logo),.nav span,.sidebar-foot span:last-child{display:none}.brand{justify-content:center;padding:0 0 22px}.nav{justify-content:center;font-size:18px}main{padding:0 14px 30px}}
@@ -181,6 +184,8 @@ body.authenticated #loginScreen{display:none}
 <script>
 const DEFAULT_DB={"animals":[],"semen":[],"iatf":[],"meta":{"activeSeasonId":"season-2026-27"},"seasons":[{"id":"season-2026-27","name":"Estação 2026/27","startDate":"2026-07-01","endDate":"2027-06-30","active":true}],"settings":{"bullMinUses":5,"bullPriorStrength":5,"lowStock":3}};
 const STORE='iatf-mra-v6-firebase';
+const DEFAULT_CATEGORIES=['Vacas','Primíparas','Precocinha'];
+const DEFAULT_DESTINOS=['Abate','Receptora'];
 const FIREBASE_CONFIG={
   apiKey:'AIzaSyBW7ih1ARuEnkuA1W9YANiGtBPM4OXw1Ck',
   authDomain:'iatf-mra.firebaseapp.com',
@@ -217,6 +222,8 @@ function migrate(x){
   x=x||deepClone(DEFAULT_DB);
   x.seasons=x.seasons||[{id:'season-2026-27',name:'Estação 2026/27',startDate:'2026-07-01',endDate:'2027-06-30',active:true}];
   x.settings={bullMinUses:5,bullPriorStrength:5,...(x.settings||{})};
+  if(!Array.isArray(x.settings.categories)||!x.settings.categories.length)x.settings.categories=DEFAULT_CATEGORIES.slice();
+  if(!Array.isArray(x.settings.destinos)||!x.settings.destinos.length)x.settings.destinos=DEFAULT_DESTINOS.slice();
   x.meta=x.meta||{};x.meta.activeSeasonId=x.meta.activeSeasonId||x.seasons[0].id;
   x.cycleDates=x.cycleDates||{};
   x.iatfCycleCategories=x.iatfCycleCategories||{};
@@ -438,7 +445,13 @@ function latestStatus(rgd){
   const rows=seasonRows().filter(r=>r.rgd===rgd&&isDiagnosed(r.result)).sort((a,b)=>Number(b.cycle)-Number(a.cycle));
   return rows.length?normResult(rows[0].result):''
 }
-function catClass(c){return c==='Vacas'?'cat-vacas':c==='Primíparas'?'cat-primi':'cat-preco'}
+// Listas editáveis em Configurações → Listas
+function categories(){return (db&&db.settings&&db.settings.categories&&db.settings.categories.length)?db.settings.categories:DEFAULT_CATEGORIES}
+function destinos(){return (db&&db.settings&&db.settings.destinos&&db.settings.destinos.length)?db.settings.destinos:DEFAULT_DESTINOS}
+// acha o item da lista ignorando maiúsculas/espaços (ex: "vacas" no Excel vira "Vacas")
+function matchList(list,v){const n=norm(v);return list.find(x=>norm(x)===n)||null}
+const CAT_CLASSES=['cat-vacas','cat-primi','cat-preco','cat-c3','cat-c4','cat-c5'];
+function catClass(c){const i=categories().findIndex(x=>x===c);return i<0?'cat-none':CAT_CLASSES[i%CAT_CLASSES.length]}
 function resClass(r){return r==='P'?'res-p':r==='V'?'res-v':r==='PRT'?'res-m':'res-none'}
 function statusLabel(r){return r==='P'?'Prenha':r==='V'?'Vazia':r==='PRT'?'PRT':'Sem resultado'}
 function title(t,s){$('#pageTitle').textContent=t;$('#pageSub').textContent=s||''}
@@ -959,7 +972,7 @@ function bullPregnancyRank(){
   return a.map((x,i)=>`<div class="rank-row"><div class="rank-num">${i+1}</div><div><div class="rank-name">${esc(x.name)}</div><div class="muted">real ${x.rate}% • ${x.preg}/${x.uses}</div></div><div class="rank-metric">${x.adjusted}%<div class="muted">ajustado</div></div></div>`).join('')
 }
 function categoryPregnancy(){
-  return ['Vacas','Primíparas','Precocinha'].map(c=>{const a=seasonRows().filter(r=>r.category===c&&isDiagnosed(r.result)),p=a.filter(r=>norm(r.result)==='P').length,rate=pct(p,a.length);return `<div class="bar-row"><div>${c}</div><div class="bar-track"><div class="bar-fill" style="width:${rate}%"></div></div><div class="bar-value">${rate}%</div></div>`}).join('')
+  return categories().map(c=>{const a=seasonRows().filter(r=>r.category===c&&isDiagnosed(r.result)),p=a.filter(r=>norm(r.result)==='P').length,rate=pct(p,a.length);return `<div class="bar-row"><div>${c}</div><div class="bar-track"><div class="bar-fill" style="width:${rate}%"></div></div><div class="bar-value">${rate}%</div></div>`}).join('')
 }
 function sortedStocks(){
   const rows=db.semen.map(s=>({name:s.name,b:stockBalance(s)})).sort((a,b)=>b.b-a.b).slice(0,10);
@@ -982,7 +995,7 @@ function dashboard(){
     <div class="card kpi"><div class="label">Doses em saldo</div><div class="value">${db.semen.reduce((a,s)=>a+stockBalance(s),0)}</div><div class="hint">saldo automático</div></div>
   </div>
   <div class="chart-grid section"><div class="chart"><h3>% de prenhez por IATF</h3><div class="sub">P ÷ (P + V + PRT)</div>${pregnancyCycleChart()}</div><div class="chart"><h3>Touros mais usados</h3><div class="sub">Quantidade de inseminações na estação</div>${topBulls()}</div></div>
-  <div class="chart-grid section"><div class="chart"><h3>Touros com bons índices de prenhez</h3><div class="sub">Mínimo de usos + índice ajustado para evitar 1/1 = melhor touro</div>${bullPregnancyRank()}</div><div class="chart"><h3>Prenhez por categoria</h3><div class="sub">Vacas, Primíparas e Precocinha</div>${categoryPregnancy()}</div></div>
+  <div class="chart-grid section"><div class="chart"><h3>Touros com bons índices de prenhez</h3><div class="sub">Mínimo de usos + índice ajustado para evitar 1/1 = melhor touro</div>${bullPregnancyRank()}</div><div class="chart"><h3>Prenhez por categoria</h3><div class="sub">${esc(categories().join(', '))}</div>${categoryPregnancy()}</div></div>
   <div class="section card"><h3>Estoque — maiores saldos primeiro</h3><div class="sub">Ordenado automaticamente do maior para o menor saldo</div><div style="margin-top:10px">${sortedStocks()}</div></div>`;
 }
 function printDashboard(){printHTML('Dashboard - '+activeSeason().name,$('#content').innerHTML)}
@@ -1066,7 +1079,7 @@ function animals(){
 }
 function todayISO(){return new Date().toISOString().slice(0,10)}
 function addBlankAnimal(){
-  db.animals.push({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:'',firstSire:'',category:'Vacas',active:true,createdAt:todayISO()});
+  db.animals.push({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:'',firstSire:'',category:categories()[0],active:true,createdAt:todayISO()});
   save();animals();
   setTimeout(()=>{const els=$$('.nav-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankAnimal=addBlankAnimal;
@@ -1082,7 +1095,7 @@ function renderAnimalTable(){
   ${animalSelecting?`<td><input class="checkbox" type="checkbox" ${animalSelected.has(a.id)?'checked':''} onchange="selectAnimal('${a.id}',this.checked)"></td>`:''}
   <td><input class="cell-input nav-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" data-prev="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-rgd')" onchange="editAnimalCell('${a.id}','rgd',this.value,this)"></td>
   <td><input class="cell-input nav-sire" list="bullsList" style="min-width:210px" value="${esc(a.firstSire)}" data-prev="${esc(a.firstSire)}" onkeydown="iatfEnter(event,'nav-sire')" onfocus="this.select()" onchange="editAnimalCell('${a.id}','firstSire',this.value,this)"></td>
-  <td><select class="cell-input category-select nav-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-cat')" onchange="editAnimalCell('${a.id}','category',this.value,this)">${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td><select class="cell-input category-select nav-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-cat')" onchange="editAnimalCell('${a.id}','category',this.value,this)">${categories().map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   <td><span class="badge ${resClass(a.status)}">${statusLabel(a.status)}</span></td>
   <td><input class="cell-input nav-cycle" type="number" min="1" step="1" style="width:70px;text-align:center" value="${a.curCycle}" placeholder="—" title="Número da IATF em que essa matriz está. Vazio = ainda não está em nenhuma." onkeydown="iatfEnter(event,'nav-cycle')" onchange="setAnimalIatfCycle('${a.id}',this.value,this)"></td>
   <td style="white-space:nowrap"><input class="cell-input nav-created" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onkeydown="iatfEnter(event,'nav-created')" onchange="editAnimalCell('${a.id}','createdAt',this.value,this)"></td>
@@ -1130,7 +1143,7 @@ function modalAnimal(id=''){
   const a=id?db.animals.find(x=>x.id===id):null;
   openModal(`<h2>${a?'Editar matriz':'Cadastrar matriz'}</h2>${bullDatalist()}<div class="form-grid">
   <div class="field"><label>RGD</label><input id="mRgd" class="input" value="${esc(a?.rgd||'')}"></div>
-  <div class="field"><label>Categoria</label><select id="mCat">${['Vacas','Primíparas','Precocinha'].map(c=>`<option ${c===(a?.category||'Vacas')?'selected':''}>${c}</option>`).join('')}</select></div>
+  <div class="field"><label>Categoria</label><select id="mCat">${categories().map(c=>`<option ${c===(a?.category||categories()[0])?'selected':''}>${c}</option>`).join('')}</select></div>
   <div class="field full"><label>1º acasalamento</label><input id="mSire" list="bullsList" class="input" value="${esc(a?.firstSire||'')}" placeholder="Digite para buscar touro do estoque"><div class="help">Somente touros cadastrados em Estoque, inclusive com saldo 0.</div></div></div>
   <div class="actions">${a?`<button class="danger-btn" onclick="deleteAnimal('${a.id}')">Excluir matriz</button>`:''}<button class="ghost" onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveAnimal('${id}')">Salvar</button></div>`)
 }
@@ -1333,7 +1346,7 @@ function updateIatfResult(id,val,el){
 function openPrtPanel(){
   const list=prtAnimals();
   if(!list.length)return openModal(`<h2>PRTs</h2><div class="notice green">Nenhuma matriz com resultado PRT nesta estação.</div><div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
-  const porCat=['Vacas','Primíparas','Precocinha'].map(cat=>{
+  const porCat=categories().map(cat=>{
     const l=list.filter(a=>a.category===cat);
     if(!l.length)return '';
     return `<div style="margin-bottom:14px"><div class="sub" style="font-weight:700;margin-bottom:6px"><span class="badge ${catClass(cat)}">${cat}</span> — ${l.length}</div>
@@ -1374,9 +1387,7 @@ function quickAddAnimalToCycle(){
   <div class="form-grid" style="margin-bottom:10px">
     <div class="field"><label>Categoria</label>
       <div class="quick-add">
-        <label class="iatf-cat-check vacas"><input type="checkbox" class="qa-cat" value="Vacas" checked onchange="qaApplyFilters()"> Vacas</label>
-        <label class="iatf-cat-check primi"><input type="checkbox" class="qa-cat" value="Primíparas" checked onchange="qaApplyFilters()"> Primíparas</label>
-        <label class="iatf-cat-check preco"><input type="checkbox" class="qa-cat" value="Precocinha" checked onchange="qaApplyFilters()"> Precocinha</label>
+        ${categories().map(c=>`<label class="iatf-cat-check ${catClass(c)}"><input type="checkbox" class="qa-cat" value="${esc(c)}" checked onchange="qaApplyFilters()"> ${esc(c)}</label>`).join('')}
       </div>
     </div>
     <div class="field"><label>Situação</label>
@@ -1452,7 +1463,7 @@ function deleteIatf(id){
 } window.deleteIatf=deleteIatf;
 function openIatfOutput(mode){
   openModal(`<h2>${mode==='print'?'Imprimir':'Exportar'} IATF</h2><div class="form-grid">
-  <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${['Vacas','Primíparas','Precocinha'].map(c=>`<option>${c}</option>`).join('')}</select></div>
+  <div class="field"><label>Categoria</label><select id="outCat"><option value="">Todas</option>${categories().map(c=>`<option>${c}</option>`).join('')}</select></div>
   <div class="field"><label>Número da IATF</label><select id="outCycle"><option value="">Todas</option>${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
   <div class="field"><label>Resultado</label><select id="outResult"><option value="">Todos</option><option>P</option><option>V</option><option>PRT</option></select></div>
   <div class="field"><label>Filtros da tela</label><select id="outCurrent"><option value="yes">Respeitar filtros das colunas (▼)</option><option value="no">Ignorar filtros da tabela</option></select></div></div>
@@ -1517,7 +1528,7 @@ function renderAcasalTable(){
   </thead><tbody>${rows.map(a=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'acasal','${a.id}')">
   ${rowHandleTd('acasal',a.id)}
   <td><input class="cell-input nav-a-rgd" style="font-weight:700;min-width:110px" value="${esc(a.rgd)}" onkeydown="iatfEnter(event,'nav-a-rgd')" onchange="editAcasalCell('${a.id}','rgd',this.value,this)"></td>
-  <td><select class="cell-input category-select nav-a-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-a-cat')" onchange="editAcasalCell('${a.id}','category',this.value,this)"><option value="">—</option>${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td><select class="cell-input category-select nav-a-cat ${catClass(a.category)}" style="min-width:120px" onkeydown="iatfEnter(event,'nav-a-cat')" onchange="editAcasalCell('${a.id}','category',this.value,this)"><option value="">—</option>${categories().map(x=>`<option ${x===a.category?'selected':''}>${x}</option>`).join('')}</select></td>
   ${ACASAL_COLS.map(([k])=>`<td><input class="cell-input nav-a-${k}" list="bullsList" style="min-width:190px" value="${esc(a[k]||'')}" onkeydown="iatfEnter(event,'nav-a-${k}')" onfocus="this.select()" onchange="editAcasalCell('${a.id}','${k}',this.value,this)"></td>`).join('')}
   <td style="white-space:nowrap"><input class="cell-input nav-a-created" type="date" style="width:135px" value="${esc(a.createdAt||'')}" onkeydown="iatfEnter(event,'nav-a-created')" onchange="editAcasalCell('${a.id}','createdAt',this.value,this)"></td>
   <td><button class="mini" onclick="deleteAcasal('${a.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
@@ -1559,15 +1570,15 @@ window.openNaoUtilizadasPanel=openNaoUtilizadasPanel;
 function naoUtilizadaRowHTML(r){
   return `<tr>
   <td style="padding:4px"><input class="cell-input nav-nu-rgd" style="min-width:100px" value="${esc(r.rgd)}" onkeydown="iatfEnter(event,'nav-nu-rgd')" onchange="editNaoUtilizada('${r.id}','rgd',this.value,this)"></td>
-  <td style="padding:4px"><select class="cell-input category-select nav-nu-cat ${catClass(r.category)}" onkeydown="iatfEnter(event,'nav-nu-cat')" onchange="editNaoUtilizada('${r.id}','category',this.value,this)"><option value="">—</option>${['Vacas','Primíparas','Precocinha'].map(x=>`<option ${x===r.category?'selected':''}>${x}</option>`).join('')}</select></td>
-  <td style="padding:4px"><select class="cell-input nav-nu-dest" onkeydown="iatfEnter(event,'nav-nu-dest')" onchange="editNaoUtilizada('${r.id}','destino',this.value,this)"><option value="">—</option><option ${r.destino==='Abate'?'selected':''}>Abate</option><option ${r.destino==='Receptora'?'selected':''}>Receptora</option></select></td>
+  <td style="padding:4px"><select class="cell-input category-select nav-nu-cat ${catClass(r.category)}" onkeydown="iatfEnter(event,'nav-nu-cat')" onchange="editNaoUtilizada('${r.id}','category',this.value,this)"><option value="">—</option>${categories().map(x=>`<option ${x===r.category?'selected':''}>${x}</option>`).join('')}</select></td>
+  <td style="padding:4px"><select class="cell-input nav-nu-dest" onkeydown="iatfEnter(event,'nav-nu-dest')" onchange="editNaoUtilizada('${r.id}','destino',this.value,this)"><option value="">—</option>${destinos().map(d=>`<option ${r.destino===d?'selected':''}>${esc(d)}</option>`).join('')}</select></td>
   <td style="padding:4px"><input class="cell-input nav-nu-motivo" style="min-width:190px" value="${esc(r.motivo||'')}" onkeydown="iatfEnter(event,'nav-nu-motivo')" onchange="editNaoUtilizada('${r.id}','motivo',this.value,this)"></td>
   <td style="padding:4px"><button class="mini" onclick="deleteNaoUtilizada('${r.id}')">Excluir</button></td></tr>`;
 }
 function renderNaoUtilizadasModal(){
   const rows=seasonNaoUtil();
   openModal(`<h2>Matrizes não utilizadas no acasalamento</h2>
-  <div class="notice green">Banco de dados simples: RGD, categoria, destinação (Abate ou Receptora) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos. Pertence à estação ${esc(activeSeason().name)}.</div>
+  <div class="notice green">Banco de dados simples: RGD, categoria, destinação (${esc(destinos().join(' ou '))}) e o motivo. Não afeta Matrizes, IATF nem Acasalamentos. Pertence à estação ${esc(activeSeason().name)}.</div>
   <div class="quick-add" style="margin-bottom:10px"><button class="primary" type="button" onclick="addBlankNaoUtilizada()">+ Linha em branco</button><button class="ghost" type="button" onclick="document.getElementById('naoUtilImportFile').click()">⬆ Subir Excel</button><button class="ghost" type="button" onclick="exportNaoUtilizadas()">⬇ Baixar Excel</button></div>
   <div style="max-height:360px;overflow:auto;border:1px solid #e3e7e4;border-radius:8px">
   <table style="width:100%;border-collapse:collapse;font-size:12px" id="nuTable">
@@ -1609,8 +1620,8 @@ function importAcasalExcel(file){
       const line=i+2;
       const rgd=String(pick(r,['RGD'])||'').trim();
       if(!rgd)return;
-      const cat=String(pick(r,['CATEGORIA'])||'').trim();
-      if(cat && !['Vacas','Primíparas','Precocinha'].includes(cat)){errs.push(`Linha ${line}: categoria "${cat}" inválida.`);return}
+      let cat=String(pick(r,['CATEGORIA'])||'').trim();
+      if(cat){const m=matchList(categories(),cat);if(!m){errs.push(`Linha ${line}: categoria "${cat}" não existe (use: ${categories().join(', ')}).`);return}cat=m}
       const vals={};
       ACASAL_COLS.forEach(([k,label])=>{
         const key=label.replace(/[ºª]/g,'').trim().replace(' ','_').toUpperCase(); // ex: "1º IATF" -> "1_IATF"
@@ -1650,10 +1661,10 @@ function importNaoUtilizadasExcel(file){
       const line=i+2;
       const rgd=String(pick(r,['RGD'])||'').trim();
       if(!rgd)return;
-      const cat=String(pick(r,['CATEGORIA'])||'').trim();
-      if(cat && !['Vacas','Primíparas','Precocinha'].includes(cat)){errs.push(`Linha ${line}: categoria "${cat}" inválida.`);return}
-      const dest=String(pick(r,['DESTINACAO','DESTINAÇÃO'])||'').trim();
-      if(dest && !['Abate','Receptora'].includes(dest)){errs.push(`Linha ${line}: destinação "${dest}" inválida (use Abate ou Receptora).`);return}
+      let cat=String(pick(r,['CATEGORIA'])||'').trim();
+      if(cat){const m=matchList(categories(),cat);if(!m){errs.push(`Linha ${line}: categoria "${cat}" não existe (use: ${categories().join(', ')}).`);return}cat=m}
+      let dest=String(pick(r,['DESTINACAO','DESTINAÇÃO'])||'').trim();
+      if(dest){const m=matchList(destinos(),dest);if(!m){errs.push(`Linha ${line}: destinação "${dest}" não existe (use: ${destinos().join(', ')}).`);return}dest=m}
       const motivo=String(pick(r,['MOTIVO'])||'').trim();
       prepared.push({rgd,cat,dest,motivo});
     });
@@ -2154,9 +2165,66 @@ function settings(){
   <div class="card"><h3>Backup e restauração</h3><div class="sub">Cópia completa de tudo (todas as estações, matrizes, estoque, IATF, exclusões) — não é o mesmo que o Excel da estação, que é só um resumo.</div>
     <div class="quick-add" style="margin-top:12px"><button class="primary" onclick="downloadFullBackup()">⬇ Baixar backup completo (JSON)</button><button class="danger-btn" onclick="document.getElementById('backupRestoreFile').click()">⬆ Restaurar backup</button></div>
     <div class="help" id="lastBackupInfo"></div>
-  </div></div>`;
+  </div></div>
+  <div class="settings-grid section">
+    <div class="card"><h3>Categorias</h3><div class="sub">Usadas em Matrizes, IATF, Acasalamentos e Não Utilizadas, em todas as estações. Renomear aqui troca o nome em todos os lançamentos.</div><div style="margin-top:12px">${listEditorHTML('categories')}</div></div>
+    <div class="card"><h3>Destinações (Não utilizadas)</h3><div class="sub">Opções da coluna Destinação em Acasalamentos → Não utilizadas.</div><div style="margin-top:12px">${listEditorHTML('destinos')}</div></div>
+  </div>`;
   {const el=$('#lastBackupInfo');if(el){const last=localStorage.getItem('iatf-last-backup-at');el.textContent=last?`Último backup baixado em ${new Date(last).toLocaleString('pt-BR')}.`:'Você ainda não baixou nenhum backup neste dispositivo.'}}
 }
+/* LISTAS EDITÁVEIS — categorias e destinações */
+function listItems(kind){return kind==='categories'?categories():destinos()}
+function listEditorHTML(kind){
+  const items=listItems(kind);
+  return items.map((v,i)=>`<div class="list-edit-row">${kind==='categories'?`<span class="badge ${catClass(v)}" style="min-width:12px">&nbsp;</span>`:''}<input class="input" value="${esc(v)}" onchange="renameListItem('${kind}',${i},this)"><button class="mini" title="Subir" ${i===0?'disabled':''} onclick="moveListItem('${kind}',${i},-1)">▲</button><button class="mini" title="Descer" ${i===items.length-1?'disabled':''} onclick="moveListItem('${kind}',${i},1)">▼</button><button class="mini" style="color:#a33627;border-color:#e7bbb5" onclick="removeListItem('${kind}',${i})">Excluir</button></div>`).join('')
+    +`<div class="list-edit-row" style="margin-top:10px"><input id="newItem-${kind}" class="input" placeholder="${kind==='categories'?'Nova categoria...':'Nova destinação...'}" onkeydown="if(event.key==='Enter')addListItem('${kind}')"><button class="primary" style="padding:7px 12px" onclick="addListItem('${kind}')">+ Adicionar</button></div>`;
+}
+// quantos lançamentos usam o valor (todas as estações) — pra não deixar excluir algo em uso
+function listItemUsage(kind,v){
+  const n=norm(v);
+  if(kind==='destinos')return (db.naoUtilizadas||[]).filter(r=>norm(r.destino)===n).length;
+  return db.animals.filter(a=>norm(a.category)===n).length+db.iatf.filter(r=>norm(r.category)===n).length
+    +(db.acasalamentos||[]).filter(a=>norm(a.category)===n).length+(db.naoUtilizadas||[]).filter(r=>norm(r.category)===n).length;
+}
+function addListItem(kind){
+  const el=$('#newItem-'+kind);const v=(el?el.value:'').trim();if(!v)return;
+  const items=listItems(kind);
+  if(matchList(items,v))return alert(`"${v}" já está na lista.`);
+  db.settings[kind]=[...items,v];save();settings();
+} window.addListItem=addListItem;
+function renameListItem(kind,i,el){
+  const items=listItems(kind).slice();const old=items[i];const v=el.value.trim();
+  if(!v){alert('O nome não pode ficar vazio.');el.value=old;return}
+  if(v===old)return;
+  if(items.some((x,j)=>j!==i&&norm(x)===norm(v))){alert(`"${v}" já está na lista.`);el.value=old;return}
+  const usos=listItemUsage(kind,old);
+  if(usos&&!confirm(`Renomear "${old}" para "${v}"?\n\nIsso troca o nome em ${usos} lançamento(s), em todas as estações.`)){el.value=old;return}
+  items[i]=v;db.settings[kind]=items;
+  const o=norm(old);
+  const fix=(obj,k)=>{if(obj&&norm(obj[k])===o)obj[k]=v};
+  if(kind==='destinos'){(db.naoUtilizadas||[]).forEach(r=>fix(r,'destino'))}
+  else{
+    db.animals.forEach(a=>fix(a,'category'));db.iatf.forEach(r=>fix(r,'category'));
+    (db.acasalamentos||[]).forEach(a=>fix(a,'category'));(db.naoUtilizadas||[]).forEach(r=>fix(r,'category'));
+    (db.iatfExcluded||[]).forEach(x=>fix(x,'category'));
+    (db.deletedAnimals||[]).forEach(d=>{fix(d.animal,'category');(d.iatf||[]).forEach(r=>fix(r,'category'))});
+    Object.values(db.iatfCycleCategories||{}).forEach(bySeason=>Object.keys(bySeason||{}).forEach(cy=>{bySeason[cy]=(bySeason[cy]||[]).map(c=>norm(c)===o?v:c)}));
+  }
+  Object.keys(excelFilters).forEach(k=>excelFilters[k]={});
+  save();settings();
+} window.renameListItem=renameListItem;
+function moveListItem(kind,i,d){
+  const items=listItems(kind).slice();const j=i+d;if(j<0||j>=items.length)return;
+  [items[i],items[j]]=[items[j],items[i]];db.settings[kind]=items;save();settings();
+} window.moveListItem=moveListItem;
+function removeListItem(kind,i){
+  const items=listItems(kind);const v=items[i];
+  if(items.length<=1)return alert('A lista precisa ter pelo menos um item.');
+  const usos=listItemUsage(kind,v);
+  if(usos)return alert(`"${v}" está em uso em ${usos} lançamento(s) (em alguma estação) e não pode ser excluída.\n\nSe quiser trocar o nome, é só editar o texto — isso atualiza todos os lançamentos.`);
+  if(!confirm(`Excluir "${v}" da lista?`))return;
+  db.settings[kind]=items.filter((_,j)=>j!==i);save();settings();
+} window.removeListItem=removeListItem;
 function saveSettings(){db.settings.bullMinUses=Math.max(1,Number($('#cfgMin').value||5));db.settings.bullPriorStrength=Math.max(0,Number($('#cfgPrior').value||5));save();settings()} window.saveSettings=saveSettings;
 
 /* BACKUP COMPLETO / RESTAURAÇÃO */
@@ -2283,7 +2351,7 @@ async function downloadAnimalTemplate(){
   ws.columns=[{header:'RGD',key:'rgd',width:20},{header:'1_ACASALAMENTO',key:'sire',width:34},{header:'CATEGORIA',key:'cat',width:18}];
   ws.getRow(1).font={bold:true};
   const bulls=sireNames();
-  const cats=['Vacas','Primíparas','Precocinha'];
+  const cats=categories();
   const lists=wb.addWorksheet('Listas'); lists.state='hidden';
   bulls.forEach((b,i)=>{lists.getCell(i+1,1).value=b});
   cats.forEach((c,i)=>{lists.getCell(i+1,2).value=c});
@@ -2302,7 +2370,7 @@ async function downloadAnimalTemplate(){
   [['INSTRUÇÕES'],
    ['RGD é obrigatório. 1_ACASALAMENTO e CATEGORIA são opcionais — pode deixar em branco.'],
    ['1_ACASALAMENTO: clique na célula e use a setinha do lado direito pra escolher o touro (lista vem do seu Estoque). Também dá pra digitar o nome direto.'],
-   ['CATEGORIA: mesma coisa — Vacas, Primíparas ou Precocinha pela setinha.'],
+   [`CATEGORIA: mesma coisa — ${categories().join(', ')} pela setinha.`],
    ['Se o RGD já existir nesta estação, os dados desta planilha atualizam o cadastro; se não existir, cria uma matriz nova.'],
    ['Os lançamentos de IATF já existentes para o mesmo RGD, nesta estação, também são atualizados automaticamente.'],
    [''],
@@ -2328,9 +2396,9 @@ function importAnimalsExcel(file){
       const rgd=String(pick(r,['RGD','MATRIZ','MATRIZES'])||Object.values(r)[0]||'').trim();
       if(!rgd)return;
       const sire=String(pick(r,['1_ACASALAMENTO','1 ACASALAMENTO','1º ACASALAMENTO'])||'').trim();
-      const cat=String(pick(r,['CATEGORIA'])||'').trim();
+      let cat=String(pick(r,['CATEGORIA'])||'').trim();
       if(sire && !sireExists(sire)){errs.push(`Linha ${line}: touro "${sire}" não existe no Estoque.`);return}
-      if(cat && !['Vacas','Primíparas','Precocinha'].includes(cat)){errs.push(`Linha ${line}: categoria "${cat}" inválida.`);return}
+      if(cat){const m=matchList(categories(),cat);if(!m){errs.push(`Linha ${line}: categoria "${cat}" não existe (use: ${categories().join(', ')}).`);return}cat=m}
       if(seen.has(norm(rgd))){errs.push(`Linha ${line}: RGD "${rgd}" duplicado no arquivo.`);return}
       seen.add(norm(rgd));
       prepared.push({rgd,sire,cat});
@@ -2345,7 +2413,7 @@ function importAnimalsExcel(file){
         if(x.cat)existing.category=x.cat;
         atualizados++;
       }else{
-        db.animals.push({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:x.rgd,firstSire:x.sire,category:x.cat||'Vacas',active:true,createdAt:todayISO()});
+        db.animals.push({id:uid('a'),seasonId:db.meta.activeSeasonId,rgd:x.rgd,firstSire:x.sire,category:x.cat||categories()[0],active:true,createdAt:todayISO()});
         novos++;
       }
       // sincroniza com lançamentos de IATF já existentes dessa matriz nesta estação
