@@ -77,6 +77,9 @@ td{padding:8px 10px;border-bottom:1px solid #edf0ee;white-space:nowrap}tbody tr:
 .animals-page .table-wrap,.iatf-page .table-wrap,.stock-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none}
 #animalTable,#iatfTable,#stockTable,#acasalTable,#embrioesTable,#fivTable{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .zoom-box{display:flex;align-items:center;gap:2px;background:#fff;border:1px solid #d9dfda;border-radius:8px;padding:2px}
+/* Mini-Excel: seleção de intervalo, copiar/colar, preencher arrastando */
+td.cell-selected{background:#dbe9ff!important}
+.fill-handle{position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;background:#2563eb;border:1px solid #fff;border-radius:1px;cursor:crosshair;z-index:6}
 .embrioes-page,.fiv-page{font-size:12px;display:flex;flex-direction:column;height:100%;min-height:0}
 .embrioes-page .table-wrap,.fiv-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none}
 .embrioes-page table,.fiv-page table{font-size:11px}
@@ -149,10 +152,10 @@ body.authenticated #loginScreen{display:none}
     <button data-page="dashboard" class="nav active">▦ <span>Dashboard</span></button>
     <button data-page="animals" class="nav">◉ <span>Matrizes</span></button>
     <button data-page="iatf" class="nav">✓ <span>IATF</span></button>
-    <button data-page="stock" class="nav">▤ <span>Estoque</span></button>
+    <button data-page="stock" class="nav">▤ <span>Estoque - Sêmen</span></button>
     <button data-page="acasal" class="nav">⚤ <span>Acasalamentos</span></button>
-    <button data-page="embrioes" class="nav" style="color:#a8dcc0">❄ <span>Embriões</span></button>
     <button data-page="fiv" class="nav" style="color:#a8dcc0">⚗ <span>FIV</span></button>
+    <button data-page="embrioes" class="nav" style="color:#a8dcc0">❄ <span>Embriões</span></button>
     <button data-page="deleted" class="nav" style="color:#e0827b">↺ <span>Exclusões</span></button>
     <button data-page="settings" class="nav">⚙ <span>Configurações</span></button>
   </nav>
@@ -190,14 +193,14 @@ let firestore=null, stateRef=null, syncTimer=null, unsubscribeFirestore=null, ap
 let db=null,page='dashboard',iatfCategory='',iatfCycle=1,animalSelecting=false,animalSelected=new Set();
 let undoStack=[],undoBaselineJSON='',suppressUndoHistory=false,localWritePending=false;
 const UNDO_LIMIT=50;
-let animalSort={key:'rgd',dir:1},iatfSort={key:'rgd',dir:1},stockSort={key:'saldo',dir:-1};
+let animalSort={key:'',dir:1},iatfSort={key:'',dir:1},stockSort={key:'',dir:1};
 let animalFilters={rgd:'',firstSire:'',category:'',status:''};
 let iatfFilters={rgd:'',firstSire:'',qty:'',result:'',category:'',cycle:1};
 let stockFilters={name:'',rgdTouro:'',tank:'',caneca:'',saldo:''};
 let excelFilters={animals:{},iatf:{},stock:{},acasal:{},embrioes:{},fiv:{}};
-let acasalSort={key:'rgd',dir:1};
-let embrioesSort={key:'rgd',dir:1};
-let fivSort={key:'rgdDoadora',dir:1};
+let acasalSort={key:'',dir:1};
+let embrioesSort={key:'',dir:1};
+let fivSort={key:'',dir:1};
 let excelFilterContext=null;
 
 const $=s=>document.querySelector(s);
@@ -596,6 +599,178 @@ function render(){
   restoreViewPosition(__view);
 }
 function setActions(h){$('#pageActions').innerHTML=h||''}
+
+/* ===== MINI-EXCEL ==================================================================
+   Seleção de intervalo (clica e arrasta, ou Shift+seta), copiar (Ctrl+C), colar (Ctrl+V)
+   e "preencher pra baixo" arrastando o quadradinho azul do canto — funciona sozinho em
+   QUALQUER tabela editável do sistema (Matrizes, IATF, Acasalamentos, Embriões, FIV,
+   Estoque), sem precisar mexer em cada tela: fica escutando o documento inteiro. */
+let gridDown=false, gridAnchor=null, gridFocusCell=null, gridFillFrom=null, gridFillDragging=false;
+function gridInfo(cellInput){
+  const td=cellInput.closest('td');const tr=td&&td.closest('tr');const tbody=tr&&tr.closest('tbody');
+  if(!td||!tr||!tbody)return null;
+  const table=tbody.closest('table');
+  const r=Array.prototype.indexOf.call(tbody.children,tr);
+  const c=Array.prototype.indexOf.call(tr.children,td);
+  return {table,tbody,tr,td,cellInput,r,c};
+}
+function gridCellInputAt(table,r,c){
+  const tbody=table.tBodies[0];if(!tbody)return null;
+  const tr=tbody.children[r];if(!tr)return null;
+  const td=tr.children[c];if(!td)return null;
+  return td.querySelector('.cell-input')||null;
+}
+function gridClear(table){
+  if(!table)return;
+  table.querySelectorAll('.cell-selected').forEach(td=>td.classList.remove('cell-selected'));
+  const h=table.querySelector('.fill-handle');if(h)h.remove();
+}
+function gridHighlight(table,r1,c1,r2,c2){
+  gridClear(table);
+  const rlo=Math.min(r1,r2),rhi=Math.max(r1,r2),clo=Math.min(c1,c2),chi=Math.max(c1,c2);
+  const tbody=table.tBodies[0];if(!tbody)return;
+  let lastTd=null;
+  for(let r=rlo;r<=rhi;r++){
+    const tr=tbody.children[r];if(!tr)continue;
+    for(let c=clo;c<=chi;c++){
+      const td=tr.children[c];if(!td)continue;
+      if(td.querySelector('.cell-input')){td.classList.add('cell-selected');lastTd=td}
+    }
+  }
+  if(lastTd){
+    const handle=document.createElement('div');
+    handle.className='fill-handle';
+    handle.addEventListener('mousedown',e=>{
+      e.preventDefault();e.stopPropagation();
+      gridFillDragging=true;
+      gridFillFrom={table,r1:rlo,r2:rhi,c1:clo,c2:chi};
+    });
+    lastTd.style.position='relative';
+    lastTd.appendChild(handle);
+  }
+}
+function gridSelectionOf(table){
+  const cells=table.querySelectorAll('.cell-selected');
+  if(!cells.length)return null;
+  let r1=Infinity,r2=-1,c1=Infinity,c2=-1;
+  cells.forEach(td=>{
+    const tr=td.parentElement,tbody=tr.parentElement;
+    const r=Array.prototype.indexOf.call(tbody.children,tr);
+    const c=Array.prototype.indexOf.call(tr.children,td);
+    r1=Math.min(r1,r);r2=Math.max(r2,r);c1=Math.min(c1,c);c2=Math.max(c2,c);
+  });
+  return {r1,r2,c1,c2};
+}
+function gridSetValue(cellInput,val){
+  if(cellInput.tagName==='SELECT'){
+    const opt=Array.from(cellInput.options).find(o=>o.value===val||o.textContent.trim()===val);
+    if(!opt)return false;
+    cellInput.value=opt.value;
+  }else{
+    cellInput.value=val;
+  }
+  cellInput.dispatchEvent(new Event('change',{bubbles:true}));
+  return true;
+}
+function gridGetValue(cellInput){return cellInput.value}
+document.addEventListener('mousedown',e=>{
+  const el=e.target.closest && e.target.closest('.cell-input');
+  if(!el)return;
+  const info=gridInfo(el);if(!info)return;
+  gridDown=true;gridAnchor={table:info.table,r:info.r,c:info.c};gridFocusCell={r:info.r,c:info.c};
+  gridHighlight(info.table,info.r,info.c,info.r,info.c);
+});
+document.addEventListener('mouseover',e=>{
+  const el=e.target.closest && e.target.closest('.cell-input');
+  if(!el)return;
+  const info=gridInfo(el);if(!info)return;
+  if(gridDown && gridAnchor && info.table===gridAnchor.table){
+    gridFocusCell={r:info.r,c:info.c};
+    gridHighlight(gridAnchor.table,gridAnchor.r,gridAnchor.c,info.r,info.c);
+  }else if(gridFillDragging && gridFillFrom && info.table===gridFillFrom.table){
+    gridFocusCell={r:info.r,c:info.c};
+    gridHighlight(gridFillFrom.table,gridFillFrom.r1,gridFillFrom.c1,Math.max(info.r,gridFillFrom.r2),gridFillFrom.c2);
+  }
+});
+document.addEventListener('mouseup',()=>{
+  if(gridFillDragging){
+    const from=gridFillFrom;
+    gridFillDragging=false;gridFillFrom=null;
+    if(from && gridFocusCell && gridFocusCell.r>from.r2){
+      const srcHeight=from.r2-from.r1+1;
+      for(let c=from.c1;c<=from.c2;c++){
+        const values=[];
+        for(let r=from.r1;r<=from.r2;r++){const ci=gridCellInputAt(from.table,r,c);values.push(ci?gridGetValue(ci):'')}
+        let idx=0;
+        for(let r=from.r2+1;r<=gridFocusCell.r;r++){
+          const ci=gridCellInputAt(from.table,r,c);
+          if(ci)gridSetValue(ci,values[idx%srcHeight]);
+          idx++;
+        }
+      }
+      gridHighlight(from.table,from.r1,from.c1,gridFocusCell.r,from.c2);
+    }
+  }
+  gridDown=false;
+});
+document.addEventListener('keydown',e=>{
+  const active=document.activeElement;
+  if(!active||!active.classList||!active.classList.contains('cell-input'))return;
+  const info=gridInfo(active);if(!info)return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){
+    const sel=gridSelectionOf(info.table);
+    if(sel && (sel.r2>sel.r1||sel.c2>sel.c1)){
+      e.preventDefault();
+      const lines=[];
+      for(let r=sel.r1;r<=sel.r2;r++){
+        const cols=[];
+        for(let c=sel.c1;c<=sel.c2;c++){const ci=gridCellInputAt(info.table,r,c);cols.push(ci?gridGetValue(ci):'')}
+        lines.push(cols.join('\t'));
+      }
+      navigator.clipboard?.writeText(lines.join('\n')).catch(()=>{});
+    }
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){
+    if(!navigator.clipboard?.readText)return;
+    e.preventDefault();
+    navigator.clipboard.readText().then(text=>{
+      if(!text)return;
+      const rows=text.replace(/\r/g,'').split('\n').filter((l,i,arr)=>!(i===arr.length-1&&l===''));
+      const grid=rows.map(l=>l.split('\t'));
+      if(!grid.length)return;
+      const sel=gridSelectionOf(info.table);
+      const startR=sel?sel.r1:info.r, startC=sel?sel.c1:info.c;
+      const endR=sel&&(sel.r2>sel.r1)?sel.r2:startR+grid.length-1;
+      const endC=sel&&(sel.c2>sel.c1)?sel.c2:startC+(grid[0]?grid[0].length-1:0);
+      for(let r=startR;r<=endR;r++){
+        for(let c=startC;c<=endC;c++){
+          const ci=gridCellInputAt(info.table,r,c);if(!ci)continue;
+          const val=grid[(r-startR)%grid.length][(c-startC)%(grid[0]?grid[0].length:1)]??'';
+          gridSetValue(ci,val);
+        }
+      }
+      gridHighlight(info.table,startR,startC,endR,endC);
+    }).catch(()=>{});
+    return;
+  }
+  if(e.shiftKey && ['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(e.key)){
+    e.preventDefault();
+    if(!gridFocusCell || !gridAnchor || gridAnchor.table!==info.table){gridAnchor={table:info.table,r:info.r,c:info.c};gridFocusCell={r:info.r,c:info.c}}
+    let{r,c}=gridFocusCell;
+    if(e.key==='ArrowDown')r++;if(e.key==='ArrowUp')r--;if(e.key==='ArrowRight')c++;if(e.key==='ArrowLeft')c--;
+    r=Math.max(0,r);c=Math.max(0,c);
+    gridFocusCell={r,c};
+    gridHighlight(info.table,gridAnchor.r,gridAnchor.c,r,c);
+  }
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest || !e.target.closest('.cell-input, .fill-handle')){
+    document.querySelectorAll('table').forEach(gridClear);
+    gridAnchor=null;gridFocusCell=null;
+  }
+});
+/* ===== FIM MINI-EXCEL ============================================================== */
 
 
 /* FILTRO ESTILO EXCEL */
@@ -1026,7 +1201,8 @@ function renderIatfRows(){
   const __view=captureViewPosition();
   const rows=iatfRowsFiltered();
   const total=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).length;
-  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 8px;font-size:11px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matriz(es) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong> nesta IATF</div><div class="table-wrap"><table><thead>
+  const qtdUsada=rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
+  root.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 8px;font-size:11px;color:#69746c"><span><strong style="color:#233129">${qtdUsada}</strong> dose(s) de sêmen usadas nesta IATF</span><span><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matriz(es) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong> nesta IATF</span></div><div class="table-wrap"><table><thead>
   <tr><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr>
   <td><strong>${esc(r.rgd)}</strong></td>
@@ -1665,11 +1841,23 @@ function addBlankFiv(){
   save();fivPage();
   setTimeout(()=>{const els=$$('.nav-fiv-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankFiv=addBlankFiv;
+function fivStatsHTML(rows){
+  const doadoras=new Set(rows.map(r=>norm(r.rgdDoadora)).filter(Boolean)).size;
+  const fresco=rows.filter(r=>r.tipo==='Fresco').length;
+  const vit=rows.filter(r=>r.tipo==='VIT').length;
+  const dt=rows.filter(r=>r.tipo==='DT').length;
+  return `<div class="quick-add" style="gap:14px;font-size:12px;color:#4a5850">
+    <span><strong style="color:#233129">${doadoras}</strong> doadora(s)</span>
+    <span><strong style="color:#233129">${fresco}</strong> Fresco</span>
+    <span><strong style="color:#233129">${vit}</strong> VIT</span>
+    <span><strong style="color:#233129">${dt}</strong> DT</span>
+  </div>`;
+}
 function renderFivTable(){
   const root=$('#fivTable');if(!root)return;
   const __view=captureViewPosition();
   const rows=fivRowsFiltered();
-  root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
+  root.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c">${fivStatsHTML(rows)}<span><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</span></div><div class="table-wrap"><table><thead>
   <tr><th>${excelHead('fiv','rgdDoadora','RGD Doadora')}</th><th>${excelHead('fiv','sire','1º Acasalamento')}</th><th>${excelHead('fiv','receptora','Nº Receptora')}</th><th>${excelHead('fiv','abcz','Nº ABCZ')}</th><th>${excelHead('fiv','tipo','Tipo')}</th><th>${excelHead('fiv','data','Data')}</th><th>${excelHead('fiv','resultado','Resultado')}</th><th></th></tr>
   </thead><tbody>${rows.map(r=>`<tr>
   <td><input class="cell-input nav-fiv-rgd" list="embDoadoraList" style="font-weight:700;min-width:110px" value="${esc(r.rgdDoadora)}" onkeydown="iatfEnter(event,'nav-fiv-rgd')" onchange="editFiv('${r.id}','rgdDoadora',this.value,this)"></td>
