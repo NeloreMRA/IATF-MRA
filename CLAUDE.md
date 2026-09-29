@@ -1,11 +1,11 @@
 # IATF MRA
 
 Sistema de gestão reprodutiva (IATF, matrizes, estoque de sêmen, embriões, FIV) em um único arquivo: `index.html` (HTML + CSS + JS, dados no Firebase/Firestore).
-`backups/` e `scripts/backup.js` são gerados pelo backup diário automático (`.github/workflows/backup.yml`) — não editar à mão.
+O backup automático (semanal) fica no repositório **privado** `NeloreMRA/backup-mra-html` (pasta `backup/iatf/`), não aqui — este repositório é público.
 
 ## Fluxo de trabalho
 - O dono do projeto autorizou: depois de testar, **abrir o PR e fazer o merge no `main` direto**, sem pedir confirmação.
-- Antes de começar uma mudança nova, atualizar o branch a partir do `main` (o backup diário faz commits no `main` todo dia).
+- Antes de começar uma mudança nova, atualizar o branch a partir do `main`.
 - Testar no navegador antes de enviar (todas as telas abrindo sem erro).
 
 ## Preferências do usuário
