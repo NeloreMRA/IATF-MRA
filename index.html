@@ -448,13 +448,13 @@ function hasReturn(r){return !!(String(r.return||'').trim()||String(r.returnSire
 function effectiveResult(r){return normResult(r.returnResult)||normResult(r.result)}
 function iatfRowIsEmpty(r){return !Number(r.qty)&&!normResult(r.result)&&!String(r.secondSire||'').trim()&&!hasReturn(r)}
 function animalIatfRows(a){return db.iatf.filter(r=>r.seasonId===a.seasonId&&norm(r.rgd)===norm(a.rgd)).sort((x,y)=>Number(y.cycle)-Number(x.cycle))}
-// Touro atual da matriz = o da última inseminação (retorno da IATF mais recente, senão a própria IATF)
+// Touro atual da matriz = o da ÚLTIMA IATF em que ela está (ou o do retorno dessa IATF, se tiver).
+// Nunca olha IATFs anteriores: se ela está na 1ª (sem resultado) e já foi colocada na 4ª com outro
+// touro, vale o da 4ª — mesmo que a 4ª ainda esteja sem touro, trocar a 1ª não mexe aqui.
 function currentSire(a){
-  for(const r of animalIatfRows(a)){
-    if(String(r.returnSire||'').trim())return r.returnSire;
-    if(String(r.firstSire||'').trim())return r.firstSire;
-  }
-  return a.firstSire||'';
+  const top=animalIatfRows(a)[0];
+  if(!top)return a.firstSire||'';
+  return String(top.returnSire||'').trim()?top.returnSire:(top.firstSire||'');
 }
 function syncAnimalSire(seasonId,rgd){const a=db.animals.find(x=>x.seasonId===seasonId&&norm(x.rgd)===norm(rgd));if(a)a.firstSire=currentSire(a)}
 // Trocar o touro pela aba Matrizes mexe só na última inseminação (não reescreve IATFs antigas)
