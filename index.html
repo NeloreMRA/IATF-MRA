@@ -93,6 +93,10 @@ td.cell-selected{background:#dbe9ff!important}
 .grp-estoque{background:#e7f0ff;color:#245a9c}
 .grp-saida{background:#fff0da;color:#8a5919}
 .grp-usados{background:#efe8ff;color:#6743a0}
+.grp-saldo{background:#e5f5eb;color:#216440}
+.grp-btn{border:1px solid currentColor;background:#fff;color:inherit;border-radius:4px;width:18px;height:18px;line-height:14px;padding:0;font-weight:800;font-size:13px;cursor:pointer;margin-left:6px;vertical-align:middle}.grp-btn:hover{background:currentColor}.grp-btn:hover span{color:#fff}
+#embrioesTable th{padding:6px 5px}#embrioesTable .excel-filter-btn{gap:3px}#embrioesTable td{padding:3px 4px}
+.grp-short{display:block;font-size:8.5px;margin-top:3px;letter-spacing:.02em}
 .zoom-box .mini{border:0;padding:5px 9px;font-size:13px;font-weight:700}
 .zoom-label{font-size:11px;color:#69746c;min-width:34px;text-align:center;display:inline-block}
 .animals-page table,.iatf-page table,.stock-page table{font-size:11px}
@@ -1127,7 +1131,7 @@ function fivSection(){
   const tipos=['Fresco','VIT','DT'];
   // saldo de embriões (estoque + saída − usados) por tipo, igual à tela Embriões
   const saldo={Fresco:0,VIT:0,DT:0};
-  (db.embrioes||[]).forEach(e=>{const c=embRowCalc(e);saldo.Fresco+=(Number(e.estFresco)||0)+(Number(e.saidaFresco)||0)-c.usoFresco;saldo.VIT+=(Number(e.estVit)||0)+(Number(e.saidaVit)||0)-c.usoVit;saldo.DT+=(Number(e.estDt)||0)+(Number(e.saidaDt)||0)-c.usoDt});
+  (db.embrioes||[]).forEach(e=>{const c=embRowCalc(e);saldo.Fresco+=c.saldoFresco;saldo.VIT+=c.saldoVit;saldo.DT+=c.saldoDt});
   const kpi=(l,v)=>`<div class="dkpi" style="--k:#b39a3b"><div class="l">${l}</div><div class="v">${v}</div></div>`;
   const byDonor={};rows.forEach(r=>{const k=norm(r.rgdDoadora);(byDonor[k]=byDonor[k]||{name:r.rgdDoadora,rows:[]}).rows.push(r)});
   const donors=Object.values(byDonor).map(d=>({name:d.name,t:d.rows.length,...rateOf(d.rows,r=>r.resultado)})).sort((a,b)=>b.t-a.t||(b.rate??-1)-(a.rate??-1)||String(a.name).localeCompare(String(b.name),'pt-BR',{numeric:true}));
@@ -1929,8 +1933,11 @@ function embRowCalc(e){
   const usoTotal=usoFresco+usoVit+usoDt;
   // Estoque + Saída − Usados: às vezes o embrião vai direto do estoque central pra vaca, sem
   // passar por "saída fazenda" antes — então o saldo tem que considerar os dois potes juntos.
+  const saldoFresco=(Number(e.estFresco)||0)+(Number(e.saidaFresco)||0)-usoFresco;
+  const saldoVit=(Number(e.estVit)||0)+(Number(e.saidaVit)||0)-usoVit;
+  const saldoDt=(Number(e.estDt)||0)+(Number(e.saidaDt)||0)-usoDt;
   const saldoTotal=estTotal+saidaTotal-usoTotal;
-  return {estTotal,saidaTotal,usoFresco,usoVit,usoDt,usoTotal,saldoTotal};
+  return {estTotal,saidaTotal,usoFresco,usoVit,usoDt,usoTotal,saldoFresco,saldoVit,saldoDt,saldoTotal};
 }
 function embrioesRowsFiltered(){
   let rows=(db.embrioes||[]).map(e=>({...e,...embRowCalc(e)})).filter(e=>excelPass('embrioes',e));
@@ -1962,60 +1969,56 @@ function addBlankEmbriao(){
   save();embrioesPage();
   setTimeout(()=>{const els=$$('.nav-emb-rgd');const last=els[els.length-1];if(last){last.scrollIntoView({block:'nearest'});last.focus()}},30)
 } window.addBlankEmbriao=addBlankEmbriao;
+/* Grupos de colunas da tabela de Embriões. O −/+ no cabeçalho recolhe/abre o grupo, igual o
+   "Agrupar" do Excel; recolhido, o grupo vira uma coluna estreita só com o total. Fica salvo neste
+   navegador. Saída Fazenda começa recolhida (por enquanto não está sendo usada). */
+const EMB_GROUPS=[
+  {k:'est',label:'ESTOQUE',short:'EST.',cls:'grp-estoque',bg:'#f7fafd',color:'#245a9c',cols:[['estFresco','Fresco',1],['estVit','VIT',1],['estDt','DT',1],['estTotal','Total',0]]},
+  {k:'saida',label:'SAÍDA FAZENDA',short:'SAÍDA',cls:'grp-saida',bg:'#fffaf2',color:'#8a5919',cols:[['saidaFresco','Fresco',1],['saidaVit','VIT',1],['saidaDt','DT',1],['saidaTotal','Total',0]]},
+  {k:'uso',label:'USADOS',short:'USADOS',cls:'grp-usados',bg:'#faf8ff',color:'#6743a0',cols:[['usoFresco','Fresco',0],['usoVit','VIT',0],['usoDt','DT',0],['usoTotal','Total',0]]},
+  {k:'saldo',label:'SALDO',short:'SALDO',cls:'grp-saldo',bg:'#f3faf5',color:'#216440',cols:[['saldoFresco','Fresco',0],['saldoVit','VIT',0],['saldoDt','DT',0],['saldoTotal','Total',0]]},
+];
+const EMB_GRP_KEY='iatf-emb-groups';
+let embClosed=(()=>{try{const v=JSON.parse(localStorage.getItem(EMB_GRP_KEY)||'null');return v&&typeof v==='object'?v:{saida:true}}catch(e){return {saida:true}}})();
+function toggleEmbGroup(k){embClosed[k]=!embClosed[k];try{localStorage.setItem(EMB_GRP_KEY,JSON.stringify(embClosed))}catch(e){}renderEmbrioesTable()} window.toggleEmbGroup=toggleEmbGroup;
+function embCellColor(k,v){return k.startsWith('saldo')&&Number(v)<0?'#a84d2b':null}
 function renderEmbrioesTable(){
   const root=$('#embrioesTable');if(!root)return;
   const __view=captureViewPosition();
   const rows=embrioesRowsFiltered();
+  const btn=(g,sign)=>`<button class="grp-btn" title="${sign==='+'?'Mostrar':'Esconder'} ${g.label.toLowerCase()}" onclick="toggleEmbGroup('${g.k}')"><span>${sign}</span></button>`;
+  const head1=EMB_GROUPS.map(g=>embClosed[g.k]
+    ?`<th rowspan="2" class="${g.cls}" style="position:static;text-align:center;width:44px">${btn(g,'+')}<span class="grp-short">${g.short}</span></th>`
+    :`<th colspan="4" class="${g.cls}" style="position:static;text-align:center">${g.label}${btn(g,'−')}</th>`).join('');
+  const head2=EMB_GROUPS.filter(g=>!embClosed[g.k]).map(g=>g.cols.map(([k,l])=>`<th class="${g.cls}" style="position:static">${excelHead('embrioes',k,l)}</th>`).join('')).join('');
+  const cell=(e,g,[k,,editable],isTotal)=>{
+    const v=e[k],col=embCellColor(k,v);
+    if(editable)return `<td style="background:${g.bg}"><input class="cell-input nav-emb-${k.toLowerCase()}" inputmode="decimal" style="width:44px;min-width:44px;text-align:center" value="${v||''}" onkeydown="iatfEnter(event,'nav-emb-${k.toLowerCase()}')" onchange="editEmbriao('${e.id}','${k}',this.value,this)"></td>`;
+    return `<td class="c-${k}" style="background:${g.bg};text-align:center;${isTotal?'font-weight:700;':''}color:${col||g.color}">${v}</td>`;
+  };
+  const body=e=>EMB_GROUPS.map(g=>embClosed[g.k]
+    ?cell(e,g,g.cols[3],true)
+    :g.cols.map((c,i)=>cell(e,g,c,i===3)).join('')).join('');
   root.innerHTML=`<div style="display:flex;justify-content:flex-end;align-items:center;margin:0 2px 10px;font-size:12px;color:#69746c"><strong style="color:#233129;margin-right:4px">${rows.length}</strong> linha(s)</div><div class="table-wrap"><table><thead>
   <tr>
     <th rowspan="2" style="position:static"></th>
     <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','rgd','RGD Doadora')}</th>
     <th rowspan="2" style="position:static;vertical-align:middle">${excelHead('embrioes','touro','Touro')}</th>
-    <th colspan="4" class="grp-estoque" style="position:static;text-align:center">ESTOQUE</th>
-    <th colspan="4" class="grp-saida" style="position:static;text-align:center">SAÍDA FAZENDA</th>
-    <th colspan="4" class="grp-usados" style="position:static;text-align:center">USADOS</th>
+    ${head1}
   </tr>
-  <tr>
-    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estFresco','Fresco')}</th>
-    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estVit','VIT')}</th>
-    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estDt','DT')}</th>
-    <th class="grp-estoque" style="position:static">${excelHead('embrioes','estTotal','TOTAL')}</th>
-    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaFresco','Fresco')}</th>
-    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaVit','VIT')}</th>
-    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaDt','DT')}</th>
-    <th class="grp-saida" style="position:static">${excelHead('embrioes','saidaTotal','Total')}</th>
-    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoFresco','Fresco')}</th>
-    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoVit','VIT')}</th>
-    <th class="grp-usados" style="position:static">${excelHead('embrioes','usoDt','DT')}</th>
-    <th class="grp-usados" style="position:static">${excelHead('embrioes','saldoTotal','Saldo Total')}</th>
-  </tr>
+  <tr>${head2}</tr>
   </thead><tbody>${rows.map(e=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'embrioes','${e.id}')">
   ${rowHandleTd('embrioes',e.id)}
-  <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:110px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
-  <td><input class="cell-input nav-emb-touro" list="bullsList" style="min-width:180px" value="${esc(e.touro||'')}" onkeydown="iatfEnter(event,'nav-emb-touro')" onfocus="this.select()" onchange="editEmbriao('${e.id}','touro',this.value,this)"></td>
-  <td style="background:#f7fafd"><input class="cell-input nav-emb-estfresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.estFresco||''}" onkeydown="iatfEnter(event,'nav-emb-estfresco')" onchange="editEmbriao('${e.id}','estFresco',this.value,this)"></td>
-  <td style="background:#f7fafd"><input class="cell-input nav-emb-estvit" inputmode="decimal" style="width:60px;text-align:center" value="${e.estVit||''}" onkeydown="iatfEnter(event,'nav-emb-estvit')" onchange="editEmbriao('${e.id}','estVit',this.value,this)"></td>
-  <td style="background:#f7fafd"><input class="cell-input nav-emb-estdt" inputmode="decimal" style="width:60px;text-align:center" value="${e.estDt||''}" onkeydown="iatfEnter(event,'nav-emb-estdt')" onchange="editEmbriao('${e.id}','estDt',this.value,this)"></td>
-  <td class="cell-est-total" style="background:#f7fafd;text-align:center;font-weight:700;color:#245a9c">${e.estTotal}</td>
-  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidafresco" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaFresco||''}" onkeydown="iatfEnter(event,'nav-emb-saidafresco')" onchange="editEmbriao('${e.id}','saidaFresco',this.value,this)"></td>
-  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidavit" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaVit||''}" onkeydown="iatfEnter(event,'nav-emb-saidavit')" onchange="editEmbriao('${e.id}','saidaVit',this.value,this)"></td>
-  <td style="background:#fffaf2"><input class="cell-input nav-emb-saidadt" inputmode="decimal" style="width:60px;text-align:center" value="${e.saidaDt||''}" onkeydown="iatfEnter(event,'nav-emb-saidadt')" onchange="editEmbriao('${e.id}','saidaDt',this.value,this)"></td>
-  <td class="cell-saida-total" style="background:#fffaf2;text-align:center;font-weight:700;color:#8a5919">${e.saidaTotal}</td>
-  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoFresco}</td>
-  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoVit}</td>
-  <td style="background:#faf8ff;text-align:center;color:#6743a0">${e.usoDt}</td>
-  <td class="cell-saldo-total" style="background:#faf8ff;text-align:center;font-weight:700;color:${e.saldoTotal<0?'#a84d2b':'#245f40'}">${e.saldoTotal}</td>
+  <td><input class="cell-input nav-emb-rgd" style="font-weight:700;min-width:80px" value="${esc(e.rgd)}" onkeydown="iatfEnter(event,'nav-emb-rgd')" onchange="editEmbriao('${e.id}','rgd',this.value,this)"></td>
+  <td><input class="cell-input nav-emb-touro" list="bullsList" style="min-width:120px" value="${esc(e.touro||'')}" onkeydown="iatfEnter(event,'nav-emb-touro')" onfocus="this.select()" onchange="editEmbriao('${e.id}','touro',this.value,this)"></td>
+  ${body(e)}
   <td><button class="mini" onclick="deleteEmbriao('${e.id}')">Excluir</button></td></tr>`).join('')}</tbody>${embrioesTotalsRowHTML(rows)}</table></div>`;
   restoreViewPosition(__view);
 }
 function embrioesTotalsRowHTML(rows){
   const sum=k=>rows.reduce((a,e)=>a+(Number(e[k])||0),0);
-  return `<tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2">
-  <td colspan="3" style="text-align:right">TOTAL</td>
-  <td style="text-align:center">${sum('estFresco')}</td><td style="text-align:center">${sum('estVit')}</td><td style="text-align:center">${sum('estDt')}</td><td style="text-align:center">${sum('estTotal')}</td>
-  <td style="text-align:center">${sum('saidaFresco')}</td><td style="text-align:center">${sum('saidaVit')}</td><td style="text-align:center">${sum('saidaDt')}</td><td style="text-align:center">${sum('saidaTotal')}</td>
-  <td style="text-align:center">${sum('usoFresco')}</td><td style="text-align:center">${sum('usoVit')}</td><td style="text-align:center">${sum('usoDt')}</td><td style="text-align:center">${sum('saldoTotal')}</td>
-  <td></td></tr></tfoot>`;
+  const tds=EMB_GROUPS.map(g=>(embClosed[g.k]?[g.cols[3]]:g.cols).map(([k])=>`<td class="t-${k}" style="text-align:center">${sum(k)}</td>`).join('')).join('');
+  return `<tfoot><tr style="background:#f3f6f4;font-weight:800;border-top:2px solid #cfd8d2"><td colspan="3" style="text-align:right">TOTAL</td>${tds}<td></td></tr></tfoot>`;
 }
 function editEmbriao(id,key,val,el){
   const e=(db.embrioes||[]).find(x=>x.id===id);if(!e)return;
@@ -2030,10 +2033,7 @@ function editEmbriao(id,key,val,el){
   save();
   const tr=el.closest('tr');if(!tr)return;
   const calc=embRowCalc(e);
-  const ce=tr.querySelector('.cell-est-total');if(ce)ce.textContent=calc.estTotal;
-  const cs=tr.querySelector('.cell-saida-total');if(cs)cs.textContent=calc.saidaTotal;
-  const csa=tr.querySelector('.cell-saldo-total');
-  if(csa){csa.textContent=calc.saldoTotal;csa.style.color=calc.saldoTotal<0?'#a84d2b':'#245f40'}
+  ['estTotal','saidaTotal','usoTotal','saldoFresco','saldoVit','saldoDt','saldoTotal'].forEach(k=>{const c=tr.querySelector('.c-'+k);if(c){c.textContent=calc[k];const col=embCellColor(k,calc[k]);if(k.startsWith('saldo'))c.style.color=col||'#216440'}});
   const tfoot=tr.closest('table')?.querySelector('tfoot');
   if(tfoot)tfoot.outerHTML=embrioesTotalsRowHTML(embrioesRowsFiltered());
 } window.editEmbriao=editEmbriao;
@@ -2050,17 +2050,22 @@ function exportEmbrioes(){
     RGD:e.rgd,TOURO:e.touro||'',
     ESTOQUE_FRESCO:e.estFresco||0,ESTOQUE_VIT:e.estVit||0,ESTOQUE_DT:e.estDt||0,ESTOQUE_TOTAL:e.estTotal,
     SAIDA_FRESCO:e.saidaFresco||0,SAIDA_VIT:e.saidaVit||0,SAIDA_DT:e.saidaDt||0,SAIDA_TOTAL:e.saidaTotal,
-    USADOS_FRESCO:e.usoFresco,USADOS_VIT:e.usoVit,USADOS_DT:e.usoDt,SALDO_TOTAL:e.saldoTotal
+    USADOS_FRESCO:e.usoFresco,USADOS_VIT:e.usoVit,USADOS_DT:e.usoDt,USADOS_TOTAL:e.usoTotal,
+    SALDO_FRESCO:e.saldoFresco,SALDO_VIT:e.saldoVit,SALDO_DT:e.saldoDt,SALDO_TOTAL:e.saldoTotal
   }));
   jsonToXlsx(out,'embrioes.xlsx','Embrioes');
 } window.exportEmbrioes=exportEmbrioes;
 function printEmbrioes(){
   const rows=embrioesRowsFiltered().filter(e=>String(e.rgd||'').trim());
   if(!rows.length)return alert('Nenhuma linha pra imprimir.');
-  const trs=rows.map(e=>`<tr><td>${esc(e.rgd)}</td><td>${esc(e.touro||'')}</td><td>${e.estFresco||0}</td><td>${e.estVit||0}</td><td>${e.estDt||0}</td><td><strong>${e.estTotal}</strong></td><td>${e.saidaFresco||0}</td><td>${e.saidaVit||0}</td><td>${e.saidaDt||0}</td><td><strong>${e.saidaTotal}</strong></td><td>${e.usoFresco}</td><td>${e.usoVit}</td><td>${e.usoDt}</td><td><strong>${e.saldoTotal}</strong></td></tr>`).join('');
+  // imprime como está na tela: grupo recolhido sai só com o total
+  const gs=EMB_GROUPS.map(g=>({g,cols:embClosed[g.k]?[g.cols[3]]:g.cols}));
   const sum=k=>rows.reduce((a,e)=>a+(Number(e[k])||0),0);
-  const totalRow=`<tr style="font-weight:bold;border-top:2px solid #999"><td colspan="2" style="text-align:right">TOTAL</td><td>${sum('estFresco')}</td><td>${sum('estVit')}</td><td>${sum('estDt')}</td><td>${sum('estTotal')}</td><td>${sum('saidaFresco')}</td><td>${sum('saidaVit')}</td><td>${sum('saidaDt')}</td><td>${sum('saidaTotal')}</td><td>${sum('usoFresco')}</td><td>${sum('usoVit')}</td><td>${sum('usoDt')}</td><td>${sum('saldoTotal')}</td></tr>`;
-  printHTML('Embriões',`<table><thead><tr><th>RGD</th><th>Touro</th><th colspan="4">Estoque</th><th colspan="4">Saída Fazenda</th><th colspan="4">Usados</th></tr><tr><th></th><th></th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Total</th><th>Fresco</th><th>VIT</th><th>DT</th><th>Saldo Total</th></tr></thead><tbody>${trs}</tbody><tfoot>${totalRow}</tfoot></table>`);
+  const h1=gs.map(({g,cols})=>`<th colspan="${cols.length}">${g.label}</th>`).join('');
+  const h2=gs.map(({cols})=>cols.map(([,l])=>`<th>${l}</th>`).join('')).join('');
+  const trs=rows.map(e=>`<tr><td>${esc(e.rgd)}</td><td>${esc(e.touro||'')}</td>${gs.map(({cols})=>cols.map(([k],i)=>`<td>${i===cols.length-1?`<strong>${e[k]||0}</strong>`:(e[k]||0)}</td>`).join('')).join('')}</tr>`).join('');
+  const totalRow=`<tr style="font-weight:bold;border-top:2px solid #999"><td colspan="2" style="text-align:right">TOTAL</td>${gs.map(({cols})=>cols.map(([k])=>`<td>${sum(k)}</td>`).join('')).join('')}</tr>`;
+  printHTML('Embriões',`<table><thead><tr><th rowspan="2">RGD</th><th rowspan="2">Touro</th>${h1}</tr><tr>${h2}</tr></thead><tbody>${trs}</tbody><tfoot>${totalRow}</tfoot></table>`);
 } window.printEmbrioes=printEmbrioes;
 function importEmbrioesExcel(file){
   readExcel(file,rows=>{
@@ -2369,7 +2374,7 @@ function defaultNoticeTexts(){
     animals:'Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz não a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser.',
     iatf:'Retorno: se a matriz foi pro curral depois da IATF (ex: apareceu no cio), preencha a data do Retorno, o Touro Retorno (desconta 1 dose do Estoque) e o Result. Retorno. O resultado do retorno passa a valer como situação dela, e o touro do retorno aparece em Matrizes até ela entrar numa próxima IATF. O botão ↩ Retornos lista todas e deixa colocar numa IATF. Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em "+ Matriz(es) nesta IATF", filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.',
     acasal:'Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + 1º IATF (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.',
-    embrioes:'Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. Usados vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). Saldo Total = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).',
+    embrioes:'Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. Usados vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). O − / + em cima de cada grupo (Estoque, Saída Fazenda, Usados, Saldo) esconde ou mostra as colunas dele, igual o Agrupar do Excel. Saldo = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).',
     fiv:'RGD Doadora sugere da lista já cadastrada em Embriões (cadastre lá primeiro se ainda não existir). 1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões — troque o RGD que a lista de touros atualiza sozinha. O Tipo (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.',
     deleted:'Ao excluir uma matriz, o cadastro e os lançamentos de IATF dela ficam guardados aqui. Recuperar devolve tudo para o sistema.',
     stock:'Clique nas células para editar. Saldo = Qtd doses − Usado. O "Usado" é calculado sozinho pelas IATFs, mas você pode digitar por cima quando a contagem não bater — fica em vermelho e o ↺ volta ao automático.'
@@ -2564,7 +2569,7 @@ async function exportSeasonAll(){
   const fivRows=seasonFiv().filter(r=>String(r.rgdDoadora||'').trim()).map(r=>({RGD_DOADORA:r.rgdDoadora,'1_ACASALAMENTO':r.sire||'',N_RECEPTORA:r.receptora||'',N_ABCZ:r.abcz||'',TIPO:r.tipo||'',DATA:fmtDate(r.data),RESULTADO:r.resultado||''}));
   const stkRows=db.semen.slice().sort((a,b)=>String(a.name).localeCompare(b.name,'pt-BR',{numeric:true}))
     .map(s=>({TOURO:s.name,RGD_TOURO:s.rgdTouro||'',BOTIJAO:s.tank||'',CANECA:s.caneca||'',QTD_DOSES:Number(s.initial||0),UTILIZADO:usedEffective(s),SALDO:stockBalance(s),DATA_ENTRADA:fmtDate(s.addedDate)}));
-  const embRows=(db.embrioes||[]).filter(e=>String(e.rgd||'').trim()).map(e=>{const c=embRowCalc(e);return {RGD:e.rgd,TOURO:e.touro||'',ESTOQUE_FRESCO:e.estFresco||0,ESTOQUE_VIT:e.estVit||0,ESTOQUE_DT:e.estDt||0,ESTOQUE_TOTAL:c.estTotal,SAIDA_FRESCO:e.saidaFresco||0,SAIDA_VIT:e.saidaVit||0,SAIDA_DT:e.saidaDt||0,SAIDA_TOTAL:c.saidaTotal,USADOS_FRESCO:c.usoFresco,USADOS_VIT:c.usoVit,USADOS_DT:c.usoDt,SALDO_TOTAL:c.saldoTotal}});
+  const embRows=(db.embrioes||[]).filter(e=>String(e.rgd||'').trim()).map(e=>{const c=embRowCalc(e);return {RGD:e.rgd,TOURO:e.touro||'',ESTOQUE_FRESCO:e.estFresco||0,ESTOQUE_VIT:e.estVit||0,ESTOQUE_DT:e.estDt||0,ESTOQUE_TOTAL:c.estTotal,SAIDA_FRESCO:e.saidaFresco||0,SAIDA_VIT:e.saidaVit||0,SAIDA_DT:e.saidaDt||0,SAIDA_TOTAL:c.saidaTotal,USADOS_FRESCO:c.usoFresco,USADOS_VIT:c.usoVit,USADOS_DT:c.usoDt,USADOS_TOTAL:c.usoTotal,SALDO_FRESCO:c.saldoFresco,SALDO_VIT:c.saldoVit,SALDO_DT:c.saldoDt,SALDO_TOTAL:c.saldoTotal}});
   const oc=finalOutcomeCounts();
   const resumo=[
     {INDICADOR:'Estação',VALOR:est.name},
