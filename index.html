@@ -339,6 +339,7 @@ function migrate(x){
     r.firstSire=String(r.firstSire||'').trim();
     r.secondSire=String(r.secondSire||'').trim();
     r.return=r.return||'';
+    r.caneca=String(r.caneca||'').trim();
     r.returnSire=String(r.returnSire||'').trim();
     r.returnResult=normResult(r.returnResult);
     r.qty=Number(r.qty||0); r.result=normResult(r.result);
@@ -482,6 +483,9 @@ function usedSemen(){const u={};db.iatf.forEach(r=>{const s=norm(r.firstSire);if
 /* RETORNO — inseminação no curral depois de uma IATF (ex: apareceu no cio). Fica na mesma linha
    da IATF: data (r.return), touro (r.returnSire, gasta 1 dose) e resultado (r.returnResult).
    Ordem dos eventos da matriz: IATF N → retorno da N → IATF N+1 → ... */
+function stockCaneca(name){const n=norm(name);if(!n)return '';const s=db.semen.find(x=>norm(x.name)===n);return s?String(s.caneca||''):''}
+// Nº Caneca da linha da IATF: o que foi digitado nela; se vazio, puxa a caneca do touro no Estoque
+function iatfCaneca(r){return String(r.caneca||'').trim()||stockCaneca(r.firstSire)}
 function hasReturn(r){return !!(String(r.return||'').trim()||String(r.returnSire||'').trim()||normResult(r.returnResult))}
 // resultado que vale pra linha: o do retorno (acontece depois da IATF), senão o da IATF
 function effectiveResult(r){return normResult(r.returnResult)||normResult(r.result)}
@@ -1451,18 +1455,17 @@ function renderIatfRows(){
   const total=seasonRows().filter(r=>Number(r.cycle)===Number(iatfCycle)).length;
   const qtdUsada=rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
   root.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 2px 8px;font-size:11px;color:#69746c"><span><strong style="color:#233129">${qtdUsada}</strong> dose(s) de sêmen usadas nesta IATF</span><span><strong style="color:#233129;margin-right:4px">${rows.length}</strong> matriz(es) exibida(s) de <strong style="color:#233129;margin:0 4px">${total}</strong> nesta IATF</span></div><div class="table-wrap"><table><thead>
-  <tr><th></th><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno (data)')}</th><th>${excelHead('iatf','returnSire','Touro Retorno')}</th><th>${excelHead('iatf','returnResult','Result. Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
+  <tr><th></th><th>${excelHead('iatf','rgd','RGD')}</th><th>${excelHead('iatf','firstSire','1º Acasalamento')}</th><th style="width:125px;min-width:125px;max-width:125px">${excelHead('iatf','secondSire','2º Acasal. (curral)')}</th><th style="width:52px;min-width:52px;max-width:52px;text-align:center;padding-left:2px;padding-right:2px">Nº Caneca</th><th style="width:64px;min-width:64px;max-width:64px;text-align:center;padding-left:8px">${excelHead('iatf','qty','Qtd')}</th><th>${excelHead('iatf','result','Result.')}</th><th>${excelHead('iatf','return','Retorno (data)')}</th><th>${excelHead('iatf','returnSire','Touro Retorno')}</th><th>${excelHead('iatf','category','Categoria')}</th><th></th></tr>
   </thead><tbody>${rows.map((r,i)=>`<tr ondragover="rowDragOver(event)" ondrop="rowDrop(event,'iatf','${r.id}')">
   ${rowHandleTd('iatf',r.id)}
   <td><strong>${esc(r.rgd)}</strong></td>
   <td><input class="cell-input iatf-sire" list="bullsList" data-id="${r.id}" data-prev="${esc(r.firstSire)}" value="${esc(r.firstSire)}" onfocus="this.select()" onchange="updateIatfSire(this)"></td>
 <td><input class="cell-input iatf-sire2" data-id="${r.id}" value="${esc(r.secondSire||'')}" placeholder="—" autocomplete="off" onchange="updateIatfCell('${r.id}','secondSire',this.value)"></td>
-<td><input class="cell-input iatf-caneca" type="text" value="" readonly tabindex="-1"></td>
+<td><input class="cell-input iatf-caneca nav-caneca" type="text" value="${esc(iatfCaneca(r))}" style="${r.caneca?'':'color:#7a857d'}" title="${r.caneca?'Digitado':'Puxado do Estoque (pode digitar por cima)'}" onkeydown="iatfEnter(event,'nav-caneca')" onchange="updateIatfCaneca('${r.id}',this.value,this)"></td>
 <td><input class="cell-input nav-qtd iatf-qty" inputmode="decimal" data-id="${r.id}" value="${r.qty||''}" onkeydown="iatfEnter(event,'nav-qtd')" onchange="updateIatfCell('${r.id}','qty',this.value)"></td>
   <td><input class="cell-input nav-result iatf-result" list="resultList" maxlength="3" data-id="${r.id}" value="${esc(r.result||'')}" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-result')" onchange="updateIatfResult('${r.id}',this.value,this)"></td>
   <td><input class="cell-input iatf-retorno nav-ret" type="date" value="${esc(r.return||'')}" onkeydown="iatfEnter(event,'nav-ret')" onchange="updateIatfReturn('${r.id}','return',this.value,this)"></td>
   <td><input class="cell-input iatf-rsire nav-rsire" list="bullsList" value="${esc(r.returnSire||'')}" data-prev="${esc(r.returnSire||'')}" placeholder="—" onfocus="this.select()" onkeydown="iatfEnter(event,'nav-rsire')" onchange="updateIatfReturn('${r.id}','returnSire',this.value,this)"></td>
-  <td><input class="cell-input iatf-rresult nav-rresult" list="resultList" maxlength="3" value="${esc(r.returnResult||'')}" placeholder="—" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-rresult')" onchange="updateIatfReturn('${r.id}','returnResult',this.value,this)"></td>
   <td><span class="badge ${catClass(r.category)}">${esc(r.category)}</span></td>
   <td><button class="mini" onclick="deleteIatf('${r.id}')">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
   restoreViewPosition(__view);
@@ -1479,9 +1482,20 @@ function updateIatfSire(el){
     r.firstSire=val;
     // cada IATF tem o seu touro; a aba Matrizes mostra o da última inseminação
     syncAnimalSire(r.seasonId,r.rgd);
+    // touro novo = caneca nova: volta a puxar a do Estoque
+    r.caneca='';
     save();el.dataset.prev=val;
+    const cn=el.closest('tr')?.querySelector('.iatf-caneca');if(cn){cn.value=iatfCaneca(r);cn.style.color='#7a857d'}
   }
 } window.updateIatfSire=updateIatfSire;
+function updateIatfCaneca(id,val,el){
+  const r=db.iatf.find(x=>x.id===id);if(!r)return;
+  val=String(val||'').trim();
+  // vazio ou igual ao do Estoque = automático
+  r.caneca=(!val||val===stockCaneca(r.firstSire))?'':val;
+  save();
+  if(el){el.value=iatfCaneca(r);el.style.color=r.caneca?'':'#7a857d'}
+} window.updateIatfCaneca=updateIatfCaneca;
 function updateIatfReturn(id,key,val,el){
   const r=db.iatf.find(x=>x.id===id);if(!r)return;
   val=String(val||'').trim();
@@ -1557,11 +1571,11 @@ function returnRows(){
 }
 function openReturnsPanel(){
   const list=returnRows();
-  if(!list.length)return openModal(`<h2>Retornos</h2><div class="notice green">Nenhum retorno lançado nesta estação. Preencha as colunas Retorno (data), Touro Retorno e Result. Retorno na tabela da IATF.</div><div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
+  if(!list.length)return openModal(`<h2>Retornos</h2><div class="notice green">Nenhum retorno lançado nesta estação. Preencha Retorno (data) e Touro Retorno na tabela da IATF.</div><div class="actions"><button class="primary" onclick="closeModal()">Fechar</button></div>`);
   openModal(`<h2>Retornos — ${esc(activeSeason().name)}</h2>
-  <div class="notice green">Matrizes que foram pro retorno depois de uma IATF. Marque quem você quer colocar numa IATF e escolha qual.</div>
+  <div class="notice green">Lance aqui o <strong>resultado do retorno</strong> (P, V ou PRT) — Enter desce pra próxima. Pra colocar matrizes numa IATF, marque e escolha qual embaixo.</div><datalist id="retResList"><option value="P"></option><option value="V"></option><option value="PRT"></option></datalist>
   <div class="table-wrap" style="max-height:340px"><table><thead><tr><th style="width:30px"><input type="checkbox" onchange="$$('.ret-pick').forEach(x=>x.checked=this.checked)" title="Marcar todas"></th><th>Data</th><th>RGD</th><th>Categoria</th><th>Após a</th><th>Touro</th><th>Resultado</th></tr></thead><tbody>
-  ${list.map(r=>`<tr><td><input type="checkbox" class="ret-pick" value="${esc(r.rgd)}"></td><td>${fmtDate(r.return)||'—'}</td><td><strong>${esc(r.rgd)}</strong></td><td><span class="badge ${catClass(r.category)}">${esc(r.category||'')}</span></td><td>${Number(r.cycle)}ª IATF</td><td>${esc(r.returnSire||'—')}</td><td>${r.returnResult?`<span class="badge ${resClass(r.returnResult)}">${statusLabel(r.returnResult)}</span>`:'—'}</td></tr>`).join('')}
+  ${list.map(r=>`<tr><td><input type="checkbox" class="ret-pick" value="${esc(r.rgd)}"></td><td>${fmtDate(r.return)||'—'}</td><td><strong>${esc(r.rgd)}</strong></td><td><span class="badge ${catClass(r.category)}">${esc(r.category||'')}</span></td><td>${Number(r.cycle)}ª IATF</td><td>${esc(r.returnSire||'—')}</td><td><input class="cell-input iatf-result nav-ret-res" list="retResList" maxlength="3" style="border:1px solid #d7ded9!important" value="${esc(r.returnResult||'')}" placeholder="—" oninput="this.value=this.value.toUpperCase()" onkeydown="iatfEnter(event,'nav-ret-res')" onchange="updateIatfReturn('${r.id}','returnResult',this.value,this)"></td></tr>`).join('')}
   </tbody></table></div>
   <div class="form-grid" style="margin-top:14px">
     <div class="field"><label>Adicionar as marcadas na</label><select id="retCycle">${Array.from({length:maxIatfCycle()},(_,i)=>i+1).map(c=>`<option value="${c}" ${c===iatfCycle?'selected':''}>${c}ª IATF</option>`).join('')}</select></div>
@@ -2372,7 +2386,7 @@ function deleteStock(id){const s=db.semen.find(x=>x.id===id);if(!s)return;if(sir
 function defaultNoticeTexts(){
   return {
     animals:'Clique direto nas células para editar. O 1º acasalamento e a categoria são espelhados com a aba IATF automaticamente. Adicionar uma matriz não a coloca em nenhuma IATF sozinha — use a coluna "IATF atual" pra colocar ela numa IATF quando quiser.',
-    iatf:'Retorno: se a matriz foi pro curral depois da IATF (ex: apareceu no cio), preencha a data do Retorno, o Touro Retorno (desconta 1 dose do Estoque) e o Result. Retorno. O resultado do retorno passa a valer como situação dela, e o touro do retorno aparece em Matrizes até ela entrar numa próxima IATF. O botão ↩ Retornos lista todas e deixa colocar numa IATF. Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em "+ Matriz(es) nesta IATF", filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.',
+    iatf:'Nº Caneca puxa sozinho a caneca do touro cadastrada no Estoque (cinza); se digitar, vale o que você digitou. Retorno: se a matriz foi pro curral depois da IATF (ex: apareceu no cio), preencha a data do Retorno, e o Touro Retorno (desconta 1 dose do Estoque); o resultado do retorno é lançado no botão ↩ Retornos. O resultado do retorno passa a valer como situação dela, e o touro do retorno aparece em Matrizes até ela entrar numa próxima IATF. O botão ↩ Retornos lista todas e deixa colocar numa IATF. Inserção sempre manual, com filtro pra te ajudar a achar rápido. Clica em "+ Matriz(es) nesta IATF", filtra por categoria e situação (Vazia, Sem resultado, PRT...) e marca quem entra. Nada entra sozinho — nem matriz nova, nem por categoria inteira.',
     acasal:'Aba de planejamento, totalmente separada de Matrizes e IATF — não sincroniza com elas. Preenche os touros previstos pra cada IATF/FIV (Enter desce a linha, Tab vai pro campo do lado, igual Excel). O botão dourado usa RGD + Categoria + 1º IATF (como 1º acasalamento) — pronto pra subir direto na aba Matrizes. Os dois downloads respeitam os filtros da tabela, então filtrar por "Criada em" antes de baixar só pega quem você quer.',
     embrioes:'Uma doadora pode ter mais de uma linha, uma pra cada touro usado nela. Usados vem sozinho da aba FIV (conta as linhas de FIV com esse RGD + esse touro + esse Tipo). O − / + em cima de cada grupo (Estoque, Saída Fazenda, Usados, Saldo) esconde ou mostra as colunas dele, igual o Agrupar do Excel. Saldo = Estoque + Saída − Usados (cobre tanto embrião que sai direto do estoque central pra vaca quanto o que passa pela fazenda antes).',
     fiv:'RGD Doadora sugere da lista já cadastrada em Embriões (cadastre lá primeiro se ainda não existir). 1º Acasalamento só sugere os touros que essa doadora específica tem lançados em Embriões — troque o RGD que a lista de touros atualiza sozinha. O Tipo (Fresco/VIT/DT) é o que conta pro "Usados" lá em Embriões — sem ele, essa linha não entra na contagem.',
