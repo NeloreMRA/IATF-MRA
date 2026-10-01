@@ -2741,18 +2741,25 @@ async function jsonToXlsx(rows,name,sheet){
 window.jsonToXlsx=jsonToXlsx;
 
 /* PRINT */
-function printHTML(titleText,body,extraCss=''){
+function printHTML(titleText,body,extraCss='',tailCss=''){
   const w=window.open('','_blank','width=1100,height=800');if(!w)return alert('O navegador bloqueou a janela de impressão.');
-  w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title><style>${extraCss}body{font-family:Arial,sans-serif;color:#111;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}.card,.chart{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi .value{font-size:20px;font-weight:bold}.sub,.muted{font-size:10px;color:#666}.bar-track{height:8px;background:#eee}.bar-fill{height:100%;background:#555}.rank-row,.inline-stat,.bar-row{display:flex;justify-content:space-between;gap:10px;padding:5px;border-bottom:1px solid #eee}.actions,.quick-add,.toolbar,.filter-row,button,input,select{display:none!important}html,body{height:auto!important;overflow:visible!important;background:#fff}.dash-hero,.dkpi,.dcard,.crow .fl,.dtable .fl{-webkit-print-color-adjust:exact;print-color-adjust:exact}.dcard,.dash-hero{break-inside:avoid}@media print{body{padding:0}}</style></head><body><h1>${esc(titleText)}</h1>${body}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},200)
+  w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title><style>${extraCss}body{font-family:Arial,sans-serif;color:#111;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}.card,.chart{border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi .value{font-size:20px;font-weight:bold}.sub,.muted{font-size:10px;color:#666}.bar-track{height:8px;background:#eee}.bar-fill{height:100%;background:#555}.rank-row,.inline-stat,.bar-row{display:flex;justify-content:space-between;gap:10px;padding:5px;border-bottom:1px solid #eee}.actions,.quick-add,.toolbar,.filter-row,button,input,select{display:none!important}html,body{height:auto!important;overflow:visible!important;background:#fff}.dash-hero,.dkpi,.dcard,.crow .fl,.dtable .fl{-webkit-print-color-adjust:exact;print-color-adjust:exact}.dcard,.dash-hero{break-inside:avoid}@media print{body{padding:0}}${tailCss}</style></head><body><h1>${esc(titleText)}</h1>${body}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},200)
 }
+// Impressão da IATF compacta: uma linha por matriz (sem quebrar nome), letra menor e títulos curtos,
+// pra caber o máximo de matrizes por folha. As colunas em branco continuam pra anotar à mão.
+const IATF_PRINT_CSS=`@page{size:A4 portrait;margin:7mm}body{padding:0}h1{font-size:13px;margin:0 0 6px}
+table{font-size:9.5px;table-layout:auto}th,td{padding:2px 4px;line-height:1.25;white-space:nowrap;border-color:#999}
+th{font-size:8px;text-transform:uppercase;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+tbody tr:nth-child(even) td{background:#f6f6f6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+tr{break-inside:avoid}td.w{min-width:34px}td.wl{min-width:62px}`;
 function printIatfRows(rows){
   const ciclos=[...new Set(rows.map(r=>Number(r.cycle)))];
   const varias=ciclos.length>1;
   const ciclo=ciclos[0]||iatfCycle;
   const titulo=varias?`IATFs ${ciclos.sort((a,b)=>a-b).map(c=>c+'ª').join(', ')} - ${activeSeason().name}`:`${ciclo}ª IATF - ${fmtDate(cycleDate(ciclo))} - ${activeSeason().name}`;
-  const colIatf=varias?'<th style="width:70px">IATF</th>':'';
-  const trs=rows.map(r=>`<tr>${varias?`<td>${Number(r.cycle)}ª <span style="color:#666">${fmtDate(cycleDate(r.cycle))}</span></td>`:''}<td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px"></td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${fmtDate(r.return)}</td><td>${esc(r.returnSire||'')}</td><td>${esc(r.returnResult||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
-  printHTML(titulo,`<table><thead><tr>${colIatf}<th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th style="width:60px">Qtd</th><th style="width:60px">Result.</th><th>Retorno</th><th>Touro Retorno</th><th>Result. Ret.</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
+  const d2=v=>{const f=fmtDate(v);return f?f.slice(0,6)+f.slice(8):''}; // 12/10/2026 -> 12/10/26
+  const trs=rows.map(r=>`<tr>${varias?`<td>${Number(r.cycle)}ª</td>`:''}<td><b>${esc(r.rgd)}</b></td><td>${esc(r.firstSire)}</td><td class="wl">${esc(r.secondSire||'')}</td><td class="w"></td><td class="w">${r.qty||''}</td><td class="w">${esc(r.result)}</td><td class="wl">${d2(r.return)}</td><td class="wl">${esc(r.returnSire||'')}</td><td class="w">${esc(r.returnResult||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+  printHTML(titulo,`<table><thead><tr>${varias?'<th>IATF</th>':''}<th>RGD</th><th>1º Acas.</th><th>2º Acas. curral</th><th>Caneca</th><th>Qtd</th><th>Res.</th><th>Retorno</th><th>Touro ret.</th><th>Res. ret.</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`,'',IATF_PRINT_CSS);
 }
 function openStockPrint(){
   openModal(`<h2>Imprimir estoque</h2><div class="form-grid">
