@@ -2765,7 +2765,7 @@ function printIatfRows(rows){
   const ciclo=ciclos[0]||iatfCycle;
   const titulo=varias?`IATFs ${ciclos.sort((a,b)=>a-b).map(c=>c+'ª').join(', ')} - ${activeSeason().name}`:`${ciclo}ª IATF - ${fmtDate(cycleDate(ciclo))} - ${activeSeason().name}`;
   const colIatf=varias?'<th style="width:70px">IATF</th>':'';
-  const trs=rows.map(r=>`<tr>${varias?`<td>${Number(r.cycle)}ª <span style="color:#666">${fmtDate(cycleDate(r.cycle))}</span></td>`:''}<td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px"></td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${fmtDate(r.return)}</td><td>${esc(r.returnSire||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
+  const trs=rows.map(r=>`<tr>${varias?`<td>${Number(r.cycle)}ª <span style="color:#666">${fmtDate(cycleDate(r.cycle))}</span></td>`:''}<td>${esc(r.rgd)}</td><td>${esc(r.firstSire)}</td><td style="min-width:120px">${esc(r.secondSire||'')}</td><td style="width:45px">${esc(iatfCaneca(r))}</td><td style="width:60px">${r.qty||''}</td><td style="width:60px">${esc(r.result)}</td><td>${fmtDate(r.return)}</td><td>${esc(r.returnSire||'')}</td><td>${esc(r.category)}</td></tr>`).join('');
   printHTML(titulo,`<table><thead><tr>${colIatf}<th>RGD</th><th>1º Acasalamento</th><th>2º Acasal. (curral)</th><th style="width:45px">Nº Caneca</th><th style="width:60px">Qtd</th><th style="width:60px">Result.</th><th>Retorno</th><th>Touro Retorno</th><th>Categoria</th></tr></thead><tbody>${trs}</tbody></table>`)
 }
 function openStockPrint(){
