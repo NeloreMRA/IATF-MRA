@@ -500,6 +500,7 @@ async function init(){
   db=localDb;
   resetUndoBaseline(true);
   bind();
+  loadViewState();
   render();
   setSyncStatus('saving','Conectando...');
   try{
@@ -650,7 +651,27 @@ function colResizeStart(e,id,lab,th){
   const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);h.classList.remove('dragging');document.body.style.cursor='';saveColWidths()};
   document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
 }
+/* TELA/FILTROS/ORDENAÇÃO LEMBRADOS NO F5 — guarda neste navegador a tela aberta, a IATF escolhida,
+   os filtros ▼ e o A→Z/Z→A de cada tabela. Filtros e IATF só voltam se for a mesma estação. */
+const VIEW_KEY='iatf-view-state';
+function saveViewState(){
+  try{localStorage.setItem(VIEW_KEY,JSON.stringify({seasonId:db&&db.meta?db.meta.activeSeasonId:'',page,iatfCycle,excelFilters,
+    sorts:{animalSort,iatfSort,stockSort,acasalSort,embrioesSort,fivSort}}))}catch(e){}
+}
+function loadViewState(){
+  let v=null;try{v=JSON.parse(localStorage.getItem(VIEW_KEY)||'null')}catch(e){}
+  if(!v||typeof v!=='object')return;
+  const pages=['dashboard','animals','iatf','stock','acasal','fiv','embrioes','deleted','settings'];
+  if(pages.includes(v.page)){page=v.page;$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page))}
+  const so=v.sorts||{},ok=x=>x&&typeof x==='object'&&typeof x.key==='string'?{key:x.key,dir:x.dir===-1?-1:1}:{key:'',dir:1};
+  animalSort=ok(so.animalSort);iatfSort=ok(so.iatfSort);stockSort=ok(so.stockSort);acasalSort=ok(so.acasalSort);embrioesSort=ok(so.embrioesSort);fivSort=ok(so.fivSort);
+  if(v.seasonId===db.meta.activeSeasonId){
+    if(Number(v.iatfCycle)>=1)iatfCycle=Number(v.iatfCycle);
+    if(v.excelFilters&&typeof v.excelFilters==='object')Object.keys(excelFilters).forEach(k=>{const f=v.excelFilters[k];excelFilters[k]=f&&typeof f==='object'?f:{}});
+  }
+}
 function restoreViewPosition(pos){
+  saveViewState();
   applyColWidths();
   if(!pos)return;
   const apply=()=>{
